@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/plugins/artificial_intelligence_forecasting_remote_sensing">
+    <file>icon.png</file>
+  </qresource>
+</RCC>

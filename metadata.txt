@@ -1,0 +1,47 @@
+# This file contains metadata for your plugin.
+
+# This file should be included when you package your plugin.# Mandatory items:
+
+[general]
+name=Artificial Intelligence Forecasting Remote Sensing
+qgisMinimumVersion=3.0
+description=This plugin allows time series forecasting using deep learning models.
+version=0.1
+author=H. Naciri; N. Ben Achhab; F.E. Ezzaher; N. Raissouni
+email=airs.qgis@gmail.com
+
+about=The Artificial Intelligence Forecasting Remote Sensing (AIRS) plugin is a free open-source plugin for QGIS that allows time series forecasting using deep learning models. The overall objective of AIRS is to simplify the complexities of data preparation, model training, and prediction, empowering you to leverage your data for accurate and insightful time series forecasts. The plugin allows users to preprocess data, build and train deep learning models, make predictions, and visualize results.
+
+tracker=http://bugs
+repository=http://repo
+# End of mandatory metadata
+
+# Recommended items:
+
+hasProcessingProvider=no
+# Uncomment the following line and add your changelog:
+# changelog=
+
+# Tags are comma separated with spaces allowed
+tags=Deep learning, LSTM model, Time series, Forecasting, Analysis, Remote sensing
+
+homepage=http://homepage
+category=Plugins
+icon=icon.png
+# experimental flag
+experimental=True
+
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# Check the documentation for more information.
+# plugin_dependencies=
+
+Category of the plugin: Raster, Vector, Database or Web
+# category=
+
+# If the plugin can run on QGIS Server.
+server=False
+
