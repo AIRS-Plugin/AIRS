@@ -1,7 +1,3 @@
-pandas
-numpy
 scikit-learn
 matplotlib
-tensorflow
-keras
 html2text

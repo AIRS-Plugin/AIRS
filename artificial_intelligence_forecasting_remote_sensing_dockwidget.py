@@ -22,6 +22,52 @@
  ***************************************************************************/
 """
 
+import pip    
+import qgis.utils
+
+#to open QGIS python console
+if qgis.utils.iface.actionShowPythonDialog().isChecked():
+    qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+    pip.main(['install','numpy'])
+else: 
+    qgis.utils.iface.actionShowPythonDialog().trigger()
+    pip.main(['install','numpy'])
+  
+if qgis.utils.iface.actionShowPythonDialog().isChecked():
+    qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+    pip.main(['install','pandas'])
+else: 
+    qgis.utils.iface.actionShowPythonDialog().trigger()
+    pip.main(['install','pandas'])
+    
+try:
+    import sklearn
+except:
+    if qgis.utils.iface.actionShowPythonDialog().isChecked():
+        qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+        pip.main(['install','scikit-learn'])
+    else: 
+        qgis.utils.iface.actionShowPythonDialog().trigger()
+        pip.main(['install','scikit-learn'])        
+try:
+    import matplotlib.pyplot
+except:
+    if qgis.utils.iface.actionShowPythonDialog().isChecked():
+        qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+        pip.main(['install','matplotlib'])
+    else: 
+        qgis.utils.iface.actionShowPythonDialog().trigger()
+        pip.main(['install','matplotlib'])        
+try:
+    import html2text
+except:
+    if qgis.utils.iface.actionShowPythonDialog().isChecked():
+        qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+        pip.main(['install','html2text'])
+    else: 
+        qgis.utils.iface.actionShowPythonDialog().trigger()
+        pip.main(['install','html2text'])
+
 import os
 import sys
 import struct
@@ -53,7 +99,6 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error, m
 import math
 import io
 import html2text
-# from IPython.display import HTML
 
 from tensorflow import keras
 from keras.models import Sequential
@@ -72,13 +117,6 @@ FORM_CLASS2, _ = uic.loadUiType(os.path.join(
 FORM_CLASS3, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'About.ui'))
 
-# FORM_CLASS4, _ = uic.loadUiType(os.path.join(
-    # os.path.dirname(__file__), 'Helpfile.ui'))
-    
-# class Help(QDialog, FORM_CLASS4):
-    # def __init__ (self, parent=None):
-        # super(Help, self).__init__(parent)
-        # self.setupUi(self)   
 
 class About(QDialog, FORM_CLASS3):
     def __init__ (self, parent=None):
@@ -96,10 +134,7 @@ class Dialog(QDialog, FORM_CLASS2):
         super(Dialog, self).__init__(parent)
         self.setupUi(self) 
         self.test=AIRSDockWidget()
-        
-        # setting  the fixed height and width of window
-        # self.setFixedHeight(1200)
-        # self.setFixedWidth(1200)
+
         
         self.pb_saveResults.clicked.connect(self.save)
         self.pb_cancel.clicked.connect(self.dialog_close)
@@ -130,7 +165,6 @@ class Dialog(QDialog, FORM_CLASS2):
         # Model Summary
         ## Canvas Here
         self.figure_1 = plt.figure()
-        # self.figure_1.set_aspect('auto')
         self.canvas_1 = FigureCanvas(self.figure_1)
         self.canvas_1.setFixedSize(1400, 400)
         ## Add canvas to frame
@@ -238,8 +272,7 @@ class Dialog(QDialog, FORM_CLASS2):
             # save accuracy
             with open(directory + '/Accuracy.txt', 'w') as file:
                 file.write(plain_text)
-                # file.write("Test Score: %s\n" % formatted_testScore)
-        # self.close()
+
     def dialog_close(self):
         self.close()
 
@@ -259,7 +292,6 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self.setupUi(self)
         
         #Dialog
-        # self.pushButton.clicked.connect(self.show_Results)
         self.dialogs = list() 
         
         #uploadcsv
@@ -280,7 +312,6 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self.spinBox_1.valueChanged.connect(self.to_sequences)
         self.spinBox_2.valueChanged.connect(self.to_filters_layer1)
         self.spinBox_3.valueChanged.connect(self.to_filters_layer2)
-        # self.spinBox_4.valueChanged.connect(self.to_epochs)
         self.spinBox_5.valueChanged.connect(self.to_Predictions)      
         
         #forecasting calculation
@@ -393,10 +424,6 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         global result_text
         global plain_text
         
-        # Set variables to a default value of 1
-        # seq_size = 1  
-        # filters_1 = 1
-        # filters_2 = 1
         
         # Check if df is defined (i.e., the user uploaded a file)
         if 'df' not in globals():
@@ -478,7 +505,6 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             #Future forecasting
             val1= len(test) - seq_size 
             x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
             temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
             temp_input=temp_input[0].tolist()
             print(temp_input)
@@ -535,7 +561,6 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             #Future forecasting
             val1= len(test) - seq_size 
             x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
             temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
             temp_input=temp_input[0].tolist()
             print(temp_input)
@@ -591,7 +616,6 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             #Future forecasting
             val1= len(test) - seq_size 
             x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
             temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
             temp_input=temp_input[0].tolist()
             print(temp_input)
@@ -645,7 +669,6 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             #Future forecasting
             val1= len(test) - seq_size 
             x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
             temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
             temp_input=temp_input[0].tolist()
             print(temp_input)
@@ -701,7 +724,6 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             #Future forecasting
             val1= len(test) - seq_size 
             x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
             temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
             temp_input=temp_input[0].tolist()
             print(temp_input)

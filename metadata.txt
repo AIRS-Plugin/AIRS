@@ -7,10 +7,11 @@ name=Artificial Intelligence Forecasting Remote Sensing
 qgisMinimumVersion=3.0
 description=This plugin allows time series forecasting using deep learning models.
 version=0.1
-author=H. Naciri; N. Ben Achhab; F.E. Ezzaher; N. Raissouni
+author=Hafssa Naciri; Nizar Ben Achhab; Fatima Ezahrae Ezzaher; Naoufal Raissouni
 email=airs.qgis@gmail.com
 
-about=The Artificial Intelligence Forecasting Remote Sensing (AIRS) plugin is a free open-source plugin for QGIS that allows time series forecasting using deep learning models. The overall objective of AIRS is to simplify the complexities of data preparation, model training, and prediction, empowering you to leverage your data for accurate and insightful time series forecasts. The plugin allows users to preprocess data, build and train deep learning models, make predictions, and visualize results.
+about=The Artificial Intelligence Forecasting Remote Sensing (AIRS) plugin is a free open-source plugin for QGIS that allows time series forecasting using deep learning models. The overall objective of AIRS is to simplify the complexities of data preparation, model training, and prediction, empowering you to leverage your data for accurate and insightful time series forecasts. The plugin allows users to preprocess data, build and train deep learning models, make predictions, and visualize results. This plugin requires the installation of Tensorflow. Before installing this plugin visit "https://www.tensorflow.org/install/pip" for step-by-step instructions.
+
 
 tracker=https://github.com/AIRS-Plugin/AIRS/issues
 repository=https://github.com/AIRS-Plugin/AIRS
