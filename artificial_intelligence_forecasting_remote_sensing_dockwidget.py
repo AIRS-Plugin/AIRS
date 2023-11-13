@@ -28,10 +28,10 @@ import qgis.utils
 #to open QGIS python console
 if qgis.utils.iface.actionShowPythonDialog().isChecked():
     qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
-    pip.main(['install','numpy==1.23.5'])
+    pip.main(['install','numpy'])
 else: 
     qgis.utils.iface.actionShowPythonDialog().trigger()
-    pip.main(['install','numpy==1.23.5'])
+    pip.main(['install','numpy'])
   
 if qgis.utils.iface.actionShowPythonDialog().isChecked():
     qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
@@ -69,6 +69,16 @@ except:
     else: 
         qgis.utils.iface.actionShowPythonDialog().trigger()
         pip.main(['install','html2text'])
+
+try:
+    import  keras
+except:
+    if qgis.utils.iface.actionShowPythonDialog().isChecked():
+        qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+        pip.main(['install','keras'])
+    else: 
+        qgis.utils.iface.actionShowPythonDialog().trigger()
+        pip.main(['install','keras'])
 
 import os
 import sys
