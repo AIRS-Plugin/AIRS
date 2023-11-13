@@ -1,3 +1,4 @@
 scikit-learn
 matplotlib
 html2text
+keras
