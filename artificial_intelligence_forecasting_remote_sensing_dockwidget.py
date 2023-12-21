@@ -26,20 +26,26 @@ import pip
 import qgis.utils
 
 #to open QGIS python console
-if qgis.utils.iface.actionShowPythonDialog().isChecked():
-    qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
-    pip.main(['install','numpy'])
-else: 
-    qgis.utils.iface.actionShowPythonDialog().trigger()
-    pip.main(['install','numpy'])
+try:
+    import numpy
+except:
+    if qgis.utils.iface.actionShowPythonDialog().isChecked():
+        qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+        pip.main(['install','numpy'])
+    else: 
+        qgis.utils.iface.actionShowPythonDialog().trigger()
+        pip.main(['install','numpy'])
+
+try:
+    import pandas
+except:
+    if qgis.utils.iface.actionShowPythonDialog().isChecked():
+        qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+        pip.main(['install','pandas'])
+    else: 
+        qgis.utils.iface.actionShowPythonDialog().trigger()
+        pip.main(['install','pandas'])
   
-if qgis.utils.iface.actionShowPythonDialog().isChecked():
-    qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
-    pip.main(['install','pandas'])
-else: 
-    qgis.utils.iface.actionShowPythonDialog().trigger()
-    pip.main(['install','pandas'])
-    
 try:
     import sklearn
 except:
@@ -71,7 +77,7 @@ except:
         pip.main(['install','html2text'])
 
 try:
-    import  keras
+    import keras
 except:
     if qgis.utils.iface.actionShowPythonDialog().isChecked():
         qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
@@ -79,6 +85,16 @@ except:
     else: 
         qgis.utils.iface.actionShowPythonDialog().trigger()
         pip.main(['install','keras'])
+        
+try:
+    import tensorflow
+except:
+    if qgis.utils.iface.actionShowPythonDialog().isChecked():
+        qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+        pip.main(['install','tensorflow'])
+    else: 
+        qgis.utils.iface.actionShowPythonDialog().trigger()
+        pip.main(['install','tensorflow'])
 
 import os
 import sys
