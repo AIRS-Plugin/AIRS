@@ -22,10 +22,13 @@
  ***************************************************************************/
 """
 
+import os
+import sys
 import pip    
 import qgis.utils
 
-#to open QGIS python console
+
+
 try:
     import numpy
 except:
@@ -76,28 +79,17 @@ except:
         qgis.utils.iface.actionShowPythonDialog().trigger()
         pip.main(['install','html2text'])
 
-try:
-    import keras
-except:
-    if qgis.utils.iface.actionShowPythonDialog().isChecked():
-        qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
-        pip.main(['install','keras'])
-    else: 
-        qgis.utils.iface.actionShowPythonDialog().trigger()
-        pip.main(['install','keras'])
-        
-try:
-    import tensorflow
-except:
-    if qgis.utils.iface.actionShowPythonDialog().isChecked():
-        qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
-        pip.main(['install','tensorflow'])
-    else: 
-        qgis.utils.iface.actionShowPythonDialog().trigger()
-        pip.main(['install','tensorflow'])
+# try:
+    # import  tensorflow
+# except:
+    # if qgis.utils.iface.actionShowPythonDialog().isChecked():
+        # qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
+        # pip.main(['install','tensorflow'])
+    # else: 
+        # qgis.utils.iface.actionShowPythonDialog().trigger()
+        # pip.main(['install','tensorflow'])
 
-import os
-import sys
+
 import struct
 from osgeo import gdal
 from osgeo import ogr 
