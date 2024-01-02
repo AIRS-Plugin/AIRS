@@ -89,6 +89,12 @@ except:
         # qgis.utils.iface.actionShowPythonDialog().trigger()
         # pip.main(['install','tensorflow'])
 
+try:
+    import tensorflow
+except ImportError:
+    # Display a message to users
+    message = "Before using this plugin, you need to install TensorFlow. Visit https://www.tensorflow.org/install/pip for step-by-step instructions. Please install TensorFlow and restart QGIS."
+    QMessageBox.information(None, "Plugin Installation", message, QMessageBox.Ok)
 
 import struct
 from osgeo import gdal
@@ -120,13 +126,6 @@ import math
 import io
 import html2text
 
-
-try:
-    import tensorflow
-except ImportError:
-    # Display a message to users
-    message = "Before using this plugin, you need to install TensorFlow. Visit https://www.tensorflow.org/install/pip for step-by-step instructions. Please install TensorFlow and restart QGIS."
-    QMessageBox.information(None, "Plugin Installation", message, QMessageBox.Ok)
 
 from tensorflow import keras
 from keras.models import Sequential
