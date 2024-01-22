@@ -26,7 +26,20 @@ import os
 import sys
 import pip    
 import qgis.utils
+import struct
+from osgeo import gdal
+from osgeo import ogr 
+from osgeo import osr
+from functools import partial
+import operator
 
+from qgis.PyQt import QtGui, QtWidgets, uic, QtCore
+from qgis.PyQt.QtGui import QDesktopServices
+from qgis.PyQt.QtCore import pyqtSignal, Qt, pyqtSlot, QUrl
+from qgis.PyQt.QtWidgets import QApplication, QFileDialog, QTreeWidgetItem, QTabWidget, QWidget, QDialog, QAbstractButton, QProgressBar, QButtonGroup, QMessageBox, QVBoxLayout, QHBoxLayout, QSizePolicy, QTableWidget, QTableWidgetItem, QCheckBox
+from qgis.core import QgsRasterLayer,QgsProject,QgsProcessing, Qgis
+from qgis.analysis import QgsRasterCalculator, QgsRasterCalculatorEntry
+from qgis.utils import iface
 
 
 try:
@@ -96,20 +109,7 @@ except ImportError:
     message = "Before using this plugin, you need to install TensorFlow. Visit https://www.tensorflow.org/install/pip for step-by-step instructions. Please install TensorFlow and restart QGIS."
     QMessageBox.information(None, "Plugin Installation", message, QMessageBox.Ok)
 
-import struct
-from osgeo import gdal
-from osgeo import ogr 
-from osgeo import osr
-from functools import partial
-import operator
 
-from qgis.PyQt import QtGui, QtWidgets, uic, QtCore
-from qgis.PyQt.QtGui import QDesktopServices
-from qgis.PyQt.QtCore import pyqtSignal, Qt, pyqtSlot, QUrl
-from qgis.PyQt.QtWidgets import QApplication, QFileDialog, QTreeWidgetItem, QTabWidget, QWidget, QDialog, QAbstractButton, QProgressBar, QButtonGroup, QMessageBox, QVBoxLayout, QHBoxLayout, QSizePolicy, QTableWidget, QTableWidgetItem, QCheckBox
-from qgis.core import QgsRasterLayer,QgsProject,QgsProcessing, Qgis
-from qgis.analysis import QgsRasterCalculator, QgsRasterCalculatorEntry
-from qgis.utils import iface
 import processing
 import time
 
