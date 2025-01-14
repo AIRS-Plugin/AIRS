@@ -36,11 +36,10 @@ import operator
 from qgis.PyQt import QtGui, QtWidgets, uic, QtCore
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtCore import pyqtSignal, Qt, pyqtSlot, QUrl
-from qgis.PyQt.QtWidgets import QApplication, QFileDialog, QTreeWidgetItem, QTabWidget, QWidget, QDialog, QAbstractButton, QProgressBar, QButtonGroup, QMessageBox, QVBoxLayout, QHBoxLayout, QSizePolicy, QTableWidget, QTableWidgetItem, QCheckBox
+from qgis.PyQt.QtWidgets import QApplication, QFileDialog, QTreeWidgetItem, QTabWidget, QWidget, QDialog, QAbstractButton, QProgressBar, QButtonGroup, QInputDialog, QMessageBox, QVBoxLayout, QHBoxLayout, QSizePolicy, QTableWidget, QTableWidgetItem, QCheckBox, QProgressDialog, QDesktopWidget
 from qgis.core import QgsRasterLayer,QgsProject,QgsProcessing, Qgis
 from qgis.analysis import QgsRasterCalculator, QgsRasterCalculatorEntry
-from qgis.utils import iface
-
+from qgis.utils import iface, reloadPlugin
 
 try:
     import numpy
@@ -91,17 +90,8 @@ except:
     else: 
         qgis.utils.iface.actionShowPythonDialog().trigger()
         pip.main(['install','html2text'])
-
-# try:
-    # import  tensorflow
-# except:
-    # if qgis.utils.iface.actionShowPythonDialog().isChecked():
-        # qgis.utils.iface.messageBar().pushMessage("Your message here", level=qgis.core.Qgis.Info, duration=5)
-        # pip.main(['install','tensorflow'])
-    # else: 
-        # qgis.utils.iface.actionShowPythonDialog().trigger()
-        # pip.main(['install','tensorflow'])
-
+        
+        
 try:
     import tensorflow
 except ImportError:
@@ -119,13 +109,16 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+import matplotlib.dates as mdates
+
+import datetime
+from dateutil import parser
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 import math
 import io
 import html2text
-
 
 from tensorflow import keras
 from keras.models import Sequential
@@ -134,6 +127,7 @@ from keras.layers import LSTM
 from keras.layers import Flatten
 from keras.layers import ConvLSTM2D
 from keras.layers import Bidirectional
+
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'artificial_intelligence_forecasting_remote_sensing_dockwidget_base.ui'))
@@ -144,13 +138,6 @@ FORM_CLASS2, _ = uic.loadUiType(os.path.join(
 FORM_CLASS3, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'About.ui'))
 
-# FORM_CLASS4, _ = uic.loadUiType(os.path.join(
-    # os.path.dirname(__file__), 'Helpfile.ui'))
-    
-# class Help(QDialog, FORM_CLASS4):
-    # def __init__ (self, parent=None):
-        # super(Help, self).__init__(parent)
-        # self.setupUi(self)   
 
 class About(QDialog, FORM_CLASS3):
     def __init__ (self, parent=None):
@@ -169,9 +156,14 @@ class Dialog(QDialog, FORM_CLASS2):
         self.setupUi(self) 
         self.test=AIRSDockWidget()
         
-        # setting  the fixed height and width of window
-        # self.setFixedHeight(1200)
-        # self.setFixedWidth(1200)
+        # Allow the Dialog to Resize
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setMinimumSize(800, 600)  # Set a reasonable minimum size
+        self.setMaximumSize(1920, 1080)  # Prevent it from getting too large
+
+        # Resize to fit the screen dynamically
+        screen_size = QDesktopWidget().screenGeometry()
+        self.resize(int(screen_size.width() * 0.8), int(screen_size.height() * 0.8))  # 80% of screen size
         
         self.pb_saveResults.clicked.connect(self.save)
         self.pb_cancel.clicked.connect(self.dialog_close)
@@ -198,13 +190,19 @@ class Dialog(QDialog, FORM_CLASS2):
         self.plot_layout_1 = tab_train_test_graphs_widget.findChild(QHBoxLayout, "plotLayout_1")
         self.plot_layout_2 = tab_prediction_graph_widget.findChild(QVBoxLayout, "plotLayout_2")
         self.accuracy_layout = tab_accuracy_widget.findChild(QVBoxLayout, "accLayout")
+
+        # # Define the number of dates to skip between displayed dates     
+        # Automatically adjust date intervals
+        locator_train = mdates.AutoDateLocator()
+        locator_test = mdates.AutoDateLocator()
+        date_format = mdates.DateFormatter('%b %Y')
         
         # Model Summary
         ## Canvas Here
         self.figure_1 = plt.figure()
         # self.figure_1.set_aspect('auto')
         self.canvas_1 = FigureCanvas(self.figure_1)
-        self.canvas_1.setFixedSize(1400, 400)
+        self.canvas_1.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         ## Add canvas to frame
         self.model_layout.addWidget(self.canvas_1)
         ## clear the canvas
@@ -215,25 +213,41 @@ class Dialog(QDialog, FORM_CLASS2):
         plt.tight_layout()
         ## refresh canvas
         self.canvas_1.draw()
-
+        
+        print("I am here before error")
+        print(type(train_dates), type(test_dates))
+        print("train_dates: {}".format(train_dates))
+        print("test_dates: {}".format(test_dates))
+         
         # GRAPHS PLOTTING : train and test
         # # Canvas Here
         self.figure_2 = plt.figure()
         self.canvas_2 = FigureCanvas(self.figure_2)
-        self.canvas_2.setFixedSize(1400, 400)
         self.canvas_2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # # Add canvas to frame
         self.plot_layout_1.addWidget(self.canvas_2)
         # # clear the canvas
         self.figure_2.clear()
         # # create plots
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 2, 1) #Train plot
+        # Apply the locator to the x-axis
+        plt.gca().xaxis.set_major_locator(locator_train)
+        # Apply the date formatter to format displayed dates
+        plt.gca().xaxis.set_major_formatter(date_format)
+        if len(train_dates) > 0 and len(test_dates) > 0:
+            plt.gca().set_xlim([min(train_dates), max(train_dates)])        
         plt.plot(train_dates, train_results['Predicted data'], label='Predicted Values')
         plt.plot(train_dates, train_results['Actual data'], label='Actual Values')
         plt.xticks(rotation=45)
         plt.ylabel('Train data')
         plt.legend(fontsize='small')
-        plt.subplot(1, 2, 2)
+        plt.subplot(1, 2, 2) #Test plot
+        # Apply the locator to the x-axis
+        plt.gca().xaxis.set_major_locator(locator_test)
+        # Apply the date formatter to format displayed dates
+        plt.gca().xaxis.set_major_formatter(date_format)
+        if len(train_dates) > 0 and len(test_dates) > 0:
+            plt.gca().set_xlim([min(test_dates), max(test_dates)])
         plt.plot(test_dates, test_results['Predicted data'], label='Predicted Values')
         plt.plot(test_dates, test_results['Actual data'], label='Actual Values')
         plt.xticks(rotation=45)
@@ -248,7 +262,7 @@ class Dialog(QDialog, FORM_CLASS2):
         # # Canvas Here
         self.figure_3 = plt.figure()
         self.canvas_3 = FigureCanvas(self.figure_3)
-        self.canvas_3.setFixedSize(1400, 400)
+        self.canvas_3.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # # Add canvas to frame
         self.plot_layout_2.addWidget(self.canvas_3)
         # # clear the canvas
@@ -310,7 +324,9 @@ class Dialog(QDialog, FORM_CLASS2):
             # save accuracy
             with open(directory + '/Accuracy.txt', 'w') as file:
                 file.write(plain_text)
-                # file.write("Test Score: %s\n" % formatted_testScore)
+            # save elapsed time for each model
+            with open(directory + '/elapsed_time.txt', 'w') as file:
+                file.write(print_text)
         # self.close()
     def dialog_close(self):
         self.close()
@@ -330,33 +346,74 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
         
+##Tab1 - CSV file ----------------------------------------------------------------------------------------------------------------------------------------
         #Dialog
-        # self.pushButton.clicked.connect(self.show_Results)
+        self.pb_results_tab1.clicked.connect(self.show_Results_tab1)
         self.dialogs = list() 
         
         #uploadcsv
-        self.tb_csvfile.clicked.connect(self.upload_CSVfile)
+        self.tb_csvfile.clicked.connect(self.upload_CSVfile)        
         
         #Radiobuttons
-        self.rb_mod1.toggled.connect(self.onRadioBtn)
-        self.rb_mod2.toggled.connect(self.onRadioBtn)
-        self.rb_mod3.toggled.connect(self.onRadioBtn)
-        self.rb_mod4.toggled.connect(self.onRadioBtn)
-        self.rb_mod5.toggled.connect(self.onRadioBtn)
+        self.rb_mod1_tab1.toggled.connect(self.onRadioBtn_tab1)
+        self.rb_mod2_tab1.toggled.connect(self.onRadioBtn_tab1)
+        self.rb_mod3_tab1.toggled.connect(self.onRadioBtn_tab1)
+        self.rb_mod4_tab1.toggled.connect(self.onRadioBtn_tab1)
+        self.rb_mod5_tab1.toggled.connect(self.onRadioBtn_tab1)
         
         #spinbox
-        self.spinBox_1.setRange(1,1000000)
-        self.spinBox_2.setRange(1,1000000)
-        self.spinBox_3.setRange(1,1000000)
-        self.spinBox_4.setRange(1,1000000)
-        self.spinBox_1.valueChanged.connect(self.to_sequences)
-        self.spinBox_2.valueChanged.connect(self.to_filters_layer1)
-        self.spinBox_3.valueChanged.connect(self.to_filters_layer2)
-        # self.spinBox_4.valueChanged.connect(self.to_epochs)
-        self.spinBox_5.valueChanged.connect(self.to_Predictions)      
+        self.spinBox1_tab1.setRange(0,1000000)
+        self.spinBox2_tab1.setRange(0,1000000)
+        self.spinBox3_tab1.setRange(0,1000000)
+        self.spinBox4_tab1.setRange(0,1000000)
+        self.spinBox5_tab1.setRange(0,1000000)
+        self.spinBox6_tab1.setRange(0,1000000)
+        self.spinBox1_tab1.valueChanged.connect(self.to_sequences_tab1)
+        self.spinBox2_tab1.valueChanged.connect(self.to_filters_layer1_tab1)
+        self.spinBox3_tab1.valueChanged.connect(self.to_filters_layer2_tab1)
+        self.spinBox4_tab1.valueChanged.connect(self.to_epochs_tab1)
+        self.spinBox5_tab1.valueChanged.connect(self.to_batch_tab1)
+        self.spinBox6_tab1.valueChanged.connect(self.to_Predictions_tab1)
         
         #forecasting calculation
-        self.pb_forecast.clicked.connect(self.choose_FC)
+        self.pb_forecast_tab1.clicked.connect(self.choose_FC_tab1)
+        
+        # automatic parameters button
+        self.pb_params_tab1.clicked.connect(self.auto_parameters_tab1)
+        
+##Tab2 - Geotiff file ----------------------------------------------------------------------------------------------------------------------------------------
+        #GeoTIFF Results saving button
+        self.pb_results_tab2.clicked.connect(self.show_Results_tab2)
+        
+        #uploadcsv
+        self.tb_geotiff.clicked.connect(self.upload_GeoTIFF_folder)
+        
+        #Radiobuttons
+        self.rb_mod1_tab2.toggled.connect(self.onRadioBtn_tab2)
+        self.rb_mod2_tab2.toggled.connect(self.onRadioBtn_tab2)
+        self.rb_mod3_tab2.toggled.connect(self.onRadioBtn_tab2)
+        self.rb_mod4_tab2.toggled.connect(self.onRadioBtn_tab2)
+        self.rb_mod5_tab2.toggled.connect(self.onRadioBtn_tab2)
+        
+        #spinbox
+        self.spinBox1_tab2.setRange(0,1000000)
+        self.spinBox2_tab2.setRange(0,1000000)
+        self.spinBox3_tab2.setRange(0,1000000)
+        self.spinBox4_tab2.setRange(0,1000000)
+        self.spinBox5_tab2.setRange(0,1000000)
+        self.spinBox6_tab2.setRange(0,1000000)
+        self.spinBox1_tab2.valueChanged.connect(self.to_sequences_tab2)
+        self.spinBox2_tab2.valueChanged.connect(self.to_filters_layer1_tab2)
+        self.spinBox3_tab2.valueChanged.connect(self.to_filters_layer2_tab2)
+        self.spinBox4_tab2.valueChanged.connect(self.to_epochs_tab2)
+        self.spinBox5_tab2.valueChanged.connect(self.to_batch_tab2)
+        self.spinBox6_tab2.valueChanged.connect(self.to_Predictions_tab2)
+        
+        #forecasting calculation
+        self.pb_forecast_tab2.clicked.connect(self.choose_FC_tab2)
+        
+        # automatic parameters button
+        self.pb_params_tab2.clicked.connect(self.auto_parameters_tab2)
         
         #Help&About
         self.About_list=list()        
@@ -364,17 +421,20 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self.pb_help.clicked.connect(self.open_help)
         
         #tooltip for the buttons
-        self.pb_forecast.setToolTip('Forecasting')
+        self.pb_forecast_tab1.setToolTip('Forecasting')
+        self.pb_forecast_tab2.setToolTip('Forecasting')
         self.pb_about.setToolTip('About')
         self.pb_help.setToolTip('Help')
 
+##Tab1 Start - CSV file ----------------------------------------------------------------------------------------------------------------------------------------
+        
     def upload_CSVfile(self):
         global df
         global dates
         # open directory
         fileName=QFileDialog.getOpenFileName(self, 'Select file', '', '*.csv *.txt')
         self.le_csvfile.setText(fileName[0])
-        self.pb_forecast.setEnabled(True)
+        self.pb_forecast_tab1.setEnabled(True)
         self.le_csvfile.setEnabled(True)
         try:
             # upload file
@@ -406,89 +466,106 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 print("No column found for values")
         except UnboundLocalError:
             print("No file selected or error occurred during file upload.")
-    
-    def onRadioBtn(self):
+
+    def onRadioBtn_tab1(self):
         global model_name
-        if self.rb_mod1.isChecked():
-            self.spinBox_3.setEnabled(True)
-            model_name = self.rb_mod1.text()
-        elif self.rb_mod2.isChecked():
-            self.spinBox_3.setEnabled(True)
-            model_name = self.rb_mod2.text()
-        elif self.rb_mod3.isChecked():
-            self.spinBox_3.setEnabled(True)
-            model_name = self.rb_mod3.text()
-        elif self.rb_mod4.isChecked():
-            self.spinBox_3.setEnabled(False)
-            model_name = self.rb_mod4.text()
-        elif self.rb_mod5.isChecked():
-            self.spinBox_3.setEnabled(True)
-            model_name = self.rb_mod5.text()
-    
-    def to_sequences(self):
+        if self.rb_mod1_tab1.isChecked():
+            self.spinBox3_tab1.setEnabled(True)
+            # self.pb_params_tab1.setEnabled(True)
+            model_name = self.rb_mod1_tab1.text()
+            
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+        elif self.rb_mod2_tab1.isChecked():
+            self.spinBox3_tab1.setEnabled(True)
+            # self.pb_params_tab1.setEnabled(True)
+            model_name = self.rb_mod2_tab1.text()
+            
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+        elif self.rb_mod3_tab1.isChecked():
+            self.spinBox3_tab1.setEnabled(True)
+            # self.pb_params_tab1.setEnabled(True)
+            model_name = self.rb_mod3_tab1.text()
+            
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+        elif self.rb_mod4_tab1.isChecked():
+            self.spinBox3_tab1.setEnabled(False)
+            # self.pb_params_tab1.setEnabled(True)
+            model_name = self.rb_mod4_tab1.text()
+            
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+        elif self.rb_mod5_tab1.isChecked():
+            self.spinBox3_tab1.setEnabled(True)
+            # self.pb_params_tab1.setEnabled(True)
+            model_name = self.rb_mod5_tab1.text()
+            
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+  
+    def to_sequences_tab1(self):
         global seq_size
-        seq_size = self.spinBox_1.value()
-
-    def to_filters_layer1(self):
-        global filters_1
-        filters_1 = self.spinBox_2.value()
-        
-    def to_filters_layer2(self):
-        global filters_2
-        filters_2 = self.spinBox_3.value()
-        
-    def to_Predictions(self):
-        global future_predict_size
-        future_predict_size = self.spinBox_5.value()
-    
-
-    def choose_FC(self):
-        global df
         global dates
-        global seq_size
-        global filters_1
-        global filters_2
-        global future_predict_size
-        global train_results
-        global test_results
+        global trainX
+        global testX
+        global trainY
+        global testY
+        global test
+        global scaler
+        global dataset
         global train_dates
         global test_dates
-        global x_before_predict
-        global x_future_predict
-        global before_predict
-        global future_predict
-        global future_results
-        global model_summary
-        global acc_name
-        global formatted_trainScore
-        global formatted_testScore
-        global result_text
-        global plain_text
-        
-        # Set variables to a default value of 1
-        # seq_size = 1  
-        # filters_1 = 1
-        # filters_2 = 1
-        
-        # Check if df is defined (i.e., the user uploaded a file)
-        if 'df' not in globals():
-            # Display a custom error message box in QGIS
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Critical)
-            msg.setText("Error: Please upload an input file before Forecast.")
-            msg.setWindowTitle("Error")
-            msg.exec_()
-            return  # Exit the function
-        
-        # Check if a forecasting model is selected
-        if not self.rb_mod1.isChecked() and not self.rb_mod2.isChecked() and not self.rb_mod3.isChecked() and not self.rb_mod4.isChecked() and not self.rb_mod5.isChecked():
-            # Display a custom error message box in QGIS
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Critical)
-            msg.setText("Error: Please select a forecasting model.")
-            msg.setWindowTitle("Error")
-            msg.exec_()
-            return  # Exit the function
+        global date_skip_train
+        global date_skip_test
+        seq_size = self.spinBox1_tab1.value()
+        self.pb_params_tab1.setEnabled(True)
         
         # # Convert values to float
         dataset = df.values
@@ -501,10 +578,22 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         test_size = len(dataset) - train_size
         # # split into train and test sets
         train, test = dataset[0:train_size,:], dataset[train_size:len(dataset),:]
+        print("test: {}".format(test))
+        print("Shape of whole test data: {}".format(test.shape))    
+        
         # # split dates into train and test dates
         train_dates_size = int(len(dates) * 0.66)
         test_dates_size = len(dates) - train_dates_size
         train_dates, test_dates = dates[seq_size:train_dates_size], dates[train_dates_size+seq_size:]
+        print(type(train_dates), type(test_dates))
+        print("train_dates: {}".format(train_dates))
+        print("test_dates: {}".format(test_dates))         
+        # Make `train_dates` and `test_dates` are Pandas Series with datetime values
+        train_dates = pd.to_datetime(train_dates)
+        test_dates = pd.to_datetime(test_dates)        
+        # Convert to NumPy array and flatten
+        train_dates = np.array(train_dates).flatten()
+        test_dates = np.array(test_dates).flatten()
 
         # # Convert an array of values into a dataset matrix
         xi = []
@@ -525,283 +614,385 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             testX = np.array(xj)
             testY = np.array(yj) 
         print("Shape of training set: {}".format(trainX.shape))
-        print("Shape of test set: {}".format(testX.shape))             
+        print("Shape of test set: {}".format(testX.shape))
+        print("trainX: {}".format(trainX))
+        print("trainY: {}".format(trainY))
+        print("testX: {}".format(testX))
+        print("testY: {}".format(testY))
         
-        # # Forecasting models:
-        if self.rb_mod1.isChecked() == True:
-            #Progress
-            progressMessageBar = iface.messageBar().createMessage("Executing...")
-            progress = QProgressBar()
-            progress.setMaximum(10)
-            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
-            progressMessageBar.layout().addWidget(progress)
-            iface.messageBar().pushWidget(progressMessageBar, Qgis.Info)
-            for i in range(10):
-                time.sleep(1)
-                progress.setValue(i+1)
-            #Model calling
-            model = Sequential()
-            model.add(Dense(filters_1, input_dim=seq_size, activation='relu')) 
-            model.add(Dense(filters_2, activation='relu')) 
-            model.add(Dense(1))
-            model.compile(loss='mean_squared_error', optimizer='adam')
-            model.fit(trainX, trainY, validation_data=(testX, testY), verbose=0, epochs=self.spinBox_4.value())
-            
-            #Future forecasting
-            val1= len(test) - seq_size 
-            x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
-            temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
-            temp_input=temp_input[0].tolist()
-            print(temp_input)
-            lst_output=[]
-            i=0
-            while(i<future_predict_size):
-                if(len(temp_input)>seq_size):
-                    x_input=np.array(temp_input[1:])
-                    print("{} input {}".format(i,x_input))
-                    x_input=x_input.reshape(1,-1)
-                    x_input = x_input.reshape((1, seq_size, 1))
-                    yhat = model.predict(x_input, verbose=0)
-                    print("{} output {}".format(i,yhat))
-                    temp_input.extend(yhat[0].tolist())
-                    temp_input=temp_input[1:]
-                    lst_output.extend(yhat.tolist())
-                    i=i+1
-                else:
-                    x_input = x_input.reshape((1, seq_size, 1))
-                    yhat = model.predict(x_input, verbose=0)
-                    print(yhat[0])
-                    temp_input.extend(yhat[0].tolist())
-                    lst_output.extend(yhat.tolist())
-                    i=i+1
-            print(lst_output)
-            
-            iface.messageBar().clearWidgets()
-        elif self.rb_mod2.isChecked() == True:
-            #Progress
-            progressMessageBar = iface.messageBar().createMessage("Executing...")
-            progress = QProgressBar()
-            progress.setMaximum(10)
-            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
-            progressMessageBar.layout().addWidget(progress)
-            iface.messageBar().pushWidget(progressMessageBar, Qgis.Info)
-            for i in range(10):
-                time.sleep(1)
-                progress.setValue(i+1)
-                
+        if self.rb_mod2_tab1.isChecked() or self.rb_mod3_tab1.isChecked() or self.rb_mod4_tab1.isChecked():
             #Reshape input to be [samples, time steps, features]
             trainX = np.reshape(trainX, (trainX.shape[0], trainX.shape[1], 1))
             testX = np.reshape(testX, (testX.shape[0], testX.shape[1], 1))
             print("New Shape of training set: {}".format(trainX.shape))
             print("New Shape of test set: {}".format(testX.shape))
-
-            #Model calling
-            model = Sequential()
-            model.add(LSTM(filters_1, input_shape=(seq_size, 1)))
-            model.add(Dense(filters_2))
-            model.add(Dense(1))
-            model.compile(loss='mean_squared_error', optimizer='adam')
-            model.fit(trainX, trainY, validation_data=(testX, testY), verbose=0, epochs=self.spinBox_4.value())
-            
-            #Future forecasting
-            val1= len(test) - seq_size 
-            x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
-            temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
-            temp_input=temp_input[0].tolist()
-            print(temp_input)
-            lst_output=[]
-            i=0
-            while(i<future_predict_size):
-                if(len(temp_input)>seq_size):
-                    x_input=np.array(temp_input[1:])
-                    print("{} input {}".format(i,x_input))
-                    x_input=x_input.reshape(1,-1)
-                    x_input = x_input.reshape((1, seq_size, 1))
-                    yhat = model.predict(x_input, verbose=0)
-                    print("{} output {}".format(i,yhat))
-                    temp_input.extend(yhat[0].tolist())
-                    temp_input=temp_input[1:]
-                    lst_output.extend(yhat.tolist())
-                    i=i+1
-                else:
-                    x_input = x_input.reshape((1, seq_size, 1))
-                    yhat = model.predict(x_input, verbose=0)
-                    print(yhat[0])
-                    temp_input.extend(yhat[0].tolist())
-                    lst_output.extend(yhat.tolist())
-                    i=i+1
-            print(lst_output)
-            
-            iface.messageBar().clearWidgets()
-        elif self.rb_mod3.isChecked() == True:
-            #Progress
-            progressMessageBar = iface.messageBar().createMessage("Executing...")
-            progress = QProgressBar()
-            progress.setMaximum(10)
-            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
-            progressMessageBar.layout().addWidget(progress)
-            iface.messageBar().pushWidget(progressMessageBar, Qgis.Info)
-            for i in range(10):
-                time.sleep(1)
-                progress.setValue(i+1)
-
-            #Reshape input to be [samples, time steps, features]
-            trainX = np.reshape(trainX, (trainX.shape[0], trainX.shape[1], 1))
-            testX = np.reshape(testX, (testX.shape[0], testX.shape[1],1))
-
-            #Model calling
-            model = Sequential()
-            model.add(LSTM(filters_1, activation='relu', return_sequences=True, input_shape=(seq_size, 1)))
-            model.add(LSTM(filters_1, activation='relu'))
-            model.add(Dense(filters_2))
-            model.add(Dense(1))
-            model.compile(optimizer='adam', loss='mean_squared_error')
-            model.fit(trainX, trainY, validation_data=(testX, testY), verbose=0, epochs=self.spinBox_4.value())
-            
-            #Future forecasting
-            val1= len(test) - seq_size 
-            x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
-            temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
-            temp_input=temp_input[0].tolist()
-            print(temp_input)
-            lst_output=[]
-            i=0
-            while(i<future_predict_size):
-                if(len(temp_input)>seq_size):
-                    x_input=np.array(temp_input[1:])
-                    print("{} input {}".format(i,x_input))
-                    x_input=x_input.reshape(1,-1)
-                    x_input = x_input.reshape((1, seq_size, 1))
-                    yhat = model.predict(x_input, verbose=0)
-                    print("{} output {}".format(i,yhat))
-                    temp_input.extend(yhat[0].tolist())
-                    temp_input=temp_input[1:]
-                    lst_output.extend(yhat.tolist())
-                    i=i+1
-                else:
-                    x_input = x_input.reshape((1, seq_size, 1))
-                    yhat = model.predict(x_input, verbose=0)
-                    print(yhat[0])
-                    temp_input.extend(yhat[0].tolist())
-                    lst_output.extend(yhat.tolist())
-                    i=i+1
-            print(lst_output)
-            
-            iface.messageBar().clearWidgets()
-        elif self.rb_mod4.isChecked() == True:
-            #Progress
-            progressMessageBar = iface.messageBar().createMessage("Executing...")
-            progress = QProgressBar()
-            progress.setMaximum(10)
-            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
-            progressMessageBar.layout().addWidget(progress)
-            iface.messageBar().pushWidget(progressMessageBar, Qgis.Info)
-            for i in range(10):
-                time.sleep(1)
-                progress.setValue(i+1)
-
-            #Reshape input to be [samples, time steps, features]
-            trainX = np.reshape(trainX, (trainX.shape[0], trainX.shape[1], 1))
-            testX = np.reshape(testX, (testX.shape[0], testX.shape[1], 1))
-
-            #Model calling
-            model = Sequential()
-            model.add(Bidirectional(LSTM(filters_1, activation='relu'), input_shape=(seq_size, 1)))
-            model.add(Dense(1))
-            model.compile(optimizer='adam', loss='mean_squared_error')
-            model.fit(trainX, trainY, validation_data=(testX, testY), verbose=0, epochs=self.spinBox_4.value())
-            
-            #Future forecasting
-            val1= len(test) - seq_size 
-            x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
-            temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
-            temp_input=temp_input[0].tolist()
-            print(temp_input)
-            lst_output=[]
-            i=0
-            while(i<future_predict_size):
-                if(len(temp_input)>seq_size):
-                    x_input=np.array(temp_input[1:])
-                    print("{} input {}".format(i,x_input))
-                    x_input=x_input.reshape(1,-1)
-                    x_input = x_input.reshape((1, seq_size, 1))
-                    yhat = model.predict(x_input, verbose=0)
-                    print("{} output {}".format(i,yhat))
-                    temp_input.extend(yhat[0].tolist())
-                    temp_input=temp_input[1:]
-                    lst_output.extend(yhat.tolist())
-                    i=i+1
-                else:
-                    x_input = x_input.reshape((1, seq_size, 1))
-                    yhat = model.predict(x_input, verbose=0)
-                    print(yhat[0])
-                    temp_input.extend(yhat[0].tolist())
-                    lst_output.extend(yhat.tolist())
-                    i=i+1
-            print(lst_output)
-            
-            iface.messageBar().clearWidgets()
-        elif self.rb_mod5.isChecked() == True:
-            #Progress
-            progressMessageBar = iface.messageBar().createMessage("Executing...")
-            progress = QProgressBar()
-            progress.setMaximum(10)
-            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
-            progressMessageBar.layout().addWidget(progress)
-            iface.messageBar().pushWidget(progressMessageBar, Qgis.Info)
-            for i in range(10):
-                time.sleep(1)
-                progress.setValue(i+1)
-
+        elif self.rb_mod5_tab1.isChecked():
             #Reshape input
             trainX = trainX.reshape((trainX.shape[0], 1, 1, 1, seq_size))
             testX = testX.reshape((testX.shape[0], 1, 1, 1, seq_size))
+            print("Shape of training set: {}".format(trainX.shape))
+            print("Shape of test set: {}".format(testX.shape))   
+        return trainX, trainY, testX, testY
+        
+    def to_filters_layer1_tab1(self):
+        global filters_1
+        filters_1 = self.spinBox2_tab1.value()
+        
+    def to_filters_layer2_tab1(self):
+        global filters_2
+        filters_2 = self.spinBox3_tab1.value()
+        
+    def to_epochs_tab1(self):
+        global epochs
+        epochs = self.spinBox4_tab1.value()    
+        
+    def to_batch_tab1(self):
+        global n_batch
+        n_batch = self.spinBox5_tab1.value()
+        
+    def to_Predictions_tab1(self):
+        global future_predict_size
+        future_predict_size = self.spinBox6_tab1.value()
 
-            #Model calling
+##### START----------------------------------- METHODS FOR AUTOMARIC HYPERPARAMETERS          
+    def create_model_tab1(self, filters_1, filters_2=None):  # Set filters_2 to None by default (model4 require it) # used for "auto_parameters" and "choose_FC_tab1" methods
+        global model
+        if self.rb_mod1_tab1.isChecked():
+            print("Model 1 selected")
+            model = Sequential()
+            model.add(Dense(filters_1, input_dim=seq_size, activation='relu')) 
+            if filters_2 is not None:  # Only add if filters_2 is provided
+                model.add(Dense(filters_2, activation='relu'))
+            model.add(Dense(1))
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])        
+        elif self.rb_mod2_tab1.isChecked():
+            print("Model 2 selected")
+            model = Sequential()
+            model.add(LSTM(filters_1, input_shape=(seq_size, 1)))
+            if filters_2 is not None:
+                model.add(Dense(filters_2))
+            model.add(Dense(1))
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])       
+        elif self.rb_mod3_tab1.isChecked():
+            print("Model 3 selected")
+            model = Sequential()
+            model.add(LSTM(filters_1, activation='relu', return_sequences=True, input_shape=(seq_size, 1)))
+            model.add(LSTM(filters_1, activation='relu'))
+            if filters_2 is not None:
+                model.add(Dense(filters_2))
+            model.add(Dense(1))
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])        
+        elif self.rb_mod4_tab1.isChecked():
+            print("Model 4 (Bidirectional LSTM) selected")
+            model = Sequential()
+            model.add(Bidirectional(LSTM(filters_1, activation='relu'), input_shape=(seq_size, 1)))
+            model.add(Dense(1))
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])        
+        elif self.rb_mod5_tab1.isChecked():
+            print("Model 5 (ConvLSTM2D) selected")
             model = Sequential()
             model.add(ConvLSTM2D(filters_1, kernel_size=(1,1), activation='relu', input_shape=(1, 1, 1, seq_size)))
             model.add(Flatten())
-            model.add(Dense(filters_2))
+            if filters_2 is not None:
+                model.add(Dense(filters_2))
             model.add(Dense(1))
-            model.compile(optimizer='adam', loss='mean_squared_error')
-            model.fit(trainX, trainY, validation_data=(testX, testY), verbose=0, epochs=self.spinBox_4.value())
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])        
+        return model
+    
+    def fit_model_tab1(self, trainX, trainY, testX, testY, n_batch, epochs, filters_1, filters_2): #used for "auto_parameters" method
+        # define model
+        # model = self.create_model_tab1(filters_1, filters_2)
+        # # Model calling
+        if self.rb_mod4_tab1.isChecked():
+            model = self.create_model_tab1(filters_1)  # No filters_2 needed
+            if model is None:
+                return  # Exit the function if model creation failed   
+        elif self.rb_mod1_tab1.isChecked() or self.rb_mod2_tab1.isChecked() or self.rb_mod3_tab1.isChecked() or self.rb_mod5_tab1.isChecked():
+            model = self.create_model_tab1(filters_1, filters_2) # For models that need filters_2
+            if model is None:
+                return  # Exit the function if model creation failed        
+        # fit model
+        history = model.fit(trainX, trainY, validation_data=(testX, testY), epochs=epochs, verbose=0, batch_size=n_batch)
+    
+        train_mae = history.history['mae']
+        val_mae = history.history['val_mae']
+    
+        mean_train_mae = sum(train_mae) / len(train_mae)
+        mean_val_mae = sum(val_mae) / len(val_mae)
+    
+        return mean_train_mae, mean_val_mae
+    
+    def auto_parameters_tab1(self): # Function to generate the best parameters
+        # Initialize global variables
+        global trainX
+        global testX
+        global trainY
+        global testY
+
+        # Check if df is defined (i.e., the user uploaded a file)
+        if 'df' not in globals():
+            # Display a custom error message box in QGIS
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Error: Please upload an input file before Forecast.")
+            msg.setWindowTitle("Error")
+            msg.exec_()
+            return  # Exit the function
+        
+        # Ask the user if they want to proceed with generating model hyperparameters
+        reply = QMessageBox.question(self, "Generate Model Hyperparameters", 
+                                  "Generating model hyperparameters automatically may take some time. Do you want to proceed?", 
+                                  QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.No:
+            return  # User chose not to proceed
             
-            #Future forecasting
+        # Display "Please wait" message while the training is happening
+        progress_box = QMessageBox()
+        progress_box.setWindowTitle("Training Progress, please wait")
+        progress_box.setText("Please wait, generating hyperparameters...")
+        progress_box.setStandardButtons(QMessageBox.NoButton)  # Remove any buttons, just show the message
+        progress_box.setIcon(QMessageBox.Information)  # Optionally, you can change the icon
+        progress_box.show()  # Show the "Please wait" message
+
+        # Check if the selected model is BiLSTM
+        is_bilstm = self.rb_mod4_tab1.isChecked()        
+        
+        # Define parameters
+        batch_sizes = [32, 64]#, 128, 256]
+        neurons1_list = [30, 50]#, 100]
+        neurons2_list = [20, 30]#, 60]
+        epochs_list = [20, 50]#, 100]
+            
+        mean_accuracies = []
+
+        # Total number of combinations to display at the end
+        total_combinations = len(batch_sizes) * len(neurons1_list) * len(neurons2_list) * len(epochs_list)
+        best_combination = None
+        best_val_mae = float('inf')  # Initialize with a very high value
+        
+        count = 0
+        for n_batch in batch_sizes:
+            for filters_1 in neurons1_list:
+                for filters_2 in neurons2_list:
+                    for epochs in epochs_list:
+                        count += 1
+                        # Call the fit_model_tab1 method to train the model
+                        mean_train_mae, mean_val_mae = self.fit_model_tab1(trainX, trainY, testX, testY, n_batch, epochs, filters_1, filters_2)
+                        
+                        # Save the parameters and performance
+                        mean_accuracies.append((n_batch, filters_1, filters_2, epochs, mean_train_mae, mean_val_mae))
+
+                        # Check if this is the best validation MAE so far
+                        if mean_val_mae < best_val_mae:
+                            best_val_mae = mean_val_mae
+                            best_combination = (n_batch, filters_1, filters_2, epochs)
+                            
+        # Close the "Please wait" message
+        progress_box.close()
+        
+        # After training is finished, show the best parameters found            
+        if best_combination:
+            best_batch, best_filters_1, best_filters_2, best_epochs = best_combination
+            # Create a message without filters_2 for BiLSTM
+            best_message = f"Best Hyperparameters found:\nBatch Size: {best_batch}\nMain Layer Neurons: {best_filters_1}\nEpochs: {best_epochs}\nValidation MAE: {best_val_mae:.4f}"            
+            if not is_bilstm:
+                best_message += f"\nDense Layer Neurons: {best_filters_2}"
+            
+            QMessageBox.information(self, "Best Hyperparameters", best_message)            
+           
+        # Update the values of the spin boxes in the plugin interface
+        self.spinBox2_tab1.setValue(best_filters_1)
+        self.spinBox4_tab1.setValue(best_epochs)
+        self.spinBox5_tab1.setValue(best_batch)
+        if not is_bilstm:
+            self.spinBox3_tab1.setValue(best_filters_2)  # Only update if needed
+        else:
+            self.spinBox3_tab1.setValue(0)  # Set to 0 or hide it if possible            
+##### END----------------------------------- METHODS FOR AUTOMARIC HYPERPARAMETERS
+
+    def choose_FC_tab1(self):
+        global df
+        global train_results
+        global test_results
+        global x_before_predict
+        global x_future_predict
+        global before_predict
+        global future_predict
+        global future_results
+        global model_summary
+        global acc_name
+        global formatted_trainScore
+        global formatted_testScore
+        global result_text
+        global plain_text
+        global trainX
+        global testX
+        global trainY
+        global testY
+        global print_text
+        
+        # Check if df is defined (i.e., the user uploaded a file)
+        if 'df' not in globals():
+            # Display a custom error message box in QGIS
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Error: Please upload an input file before Forecast.")
+            msg.setWindowTitle("Error")
+            msg.exec_()
+            return  # Exit the function
+        
+        # Check if a forecasting model is selected
+        if not self.rb_mod1_tab1.isChecked() and not self.rb_mod2_tab1.isChecked() and not self.rb_mod3_tab1.isChecked() and not self.rb_mod4_tab1.isChecked() and not self.rb_mod5_tab1.isChecked():
+            # Display a custom error message box in QGIS
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Error: Please select a forecasting model.")
+            msg.setWindowTitle("Error")
+            msg.exec_()
+            return  # Exit the function
+            
+        # Check if the hyperparameters spin boxes are filled before forecasting
+        # Retrieve hyperparameters directly from the spin boxes
+        seq_size = self.spinBox1_tab1.value()
+        filters_1 = self.spinBox2_tab1.value()
+        filters_2 = self.spinBox3_tab1.value()
+        epochs = self.spinBox4_tab1.value()
+        n_batch = self.spinBox5_tab1.value()
+        future_predict_size = self.spinBox6_tab1.value()               
+        # Check if BiLSTM is selected
+        is_bilstm = self.rb_mod4_tab1.isChecked()
+        # Check for missing values (zero means not set)
+        missing_params = []
+        if seq_size == 0:
+            missing_params.append("Sequence Size")
+        if filters_1 == 0:
+            missing_params.append("Main Layer Neurons")
+        if not is_bilstm and filters_2 == 0:  # Only check filters_2 if NOT BiLSTM
+            missing_params.append("Dense Layer Neurons")
+        if epochs == 0:
+            missing_params.append("Epochs")
+        if n_batch == 0:
+            missing_params.append("Batch Size")
+        if future_predict_size == 0:
+            missing_params.append("Prediction Size")
+        # If there are missing parameters, show an error message and stop execution
+        if missing_params:
+            error_message = "Error: Please enter values for the following hyperparameters:\n" + "\n".join(missing_params)
+            QMessageBox.critical(self, "Missing Hyperparameters", error_message)
+            return  # Stop execution  
+            
+        # Activate Results button
+        self.pb_results_tab1.setEnabled(True)   
+
+        # Create an instance of the html2text converter
+        converter = html2text.HTML2Text()        
+            
+        #Progress
+        progressMessageBar = iface.messageBar().createMessage("Executing...")
+        progress = QProgressBar()
+        progress.setMaximum(10)
+        progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+        progressMessageBar.layout().addWidget(progress)
+        iface.messageBar().pushWidget(progressMessageBar, Qgis.Info)
+        #Start the timer
+        start_time = time.time()        
+        for i in range(10):
+            time.sleep(1)
+            progress.setValue(i+1)
+                
+        # # Model calling
+        if self.rb_mod4_tab1.isChecked():
+            model = self.create_model_tab1(filters_1)  # No filters_2 needed
+            if model is None:
+                return  # Exit the function if model creation failed   
+        elif self.rb_mod1_tab1.isChecked() or self.rb_mod2_tab1.isChecked() or self.rb_mod3_tab1.isChecked() or self.rb_mod5_tab1.isChecked():
+            model = self.create_model_tab1(filters_1, filters_2) # For models that need filters_2
+            if model is None:
+                return  # Exit the function if model creation failed
+        print("Shape of trainX(before fit):", trainX.shape)  # Should be (num_samples, seq_size, 1) if model1 is selected
+        print("Shape of trainY(before fit):", trainY.shape)  # Should be (num_samples,) if model1 is selected
+        print("Shape of testX(before fit):", testX.shape)
+        print("Shape of testY(before fit):", testY.shape)
+        model.fit(trainX, trainY, validation_data=(testX, testY), verbose=0, epochs=epochs, batch_size=n_batch)
+
+        # # Future forecasting
+        if self.rb_mod1_tab1.isChecked() or self.rb_mod2_tab1.isChecked() or self.rb_mod3_tab1.isChecked() or self.rb_mod4_tab1.isChecked():  
+            print("test: {}".format(test))
+            print("Shape of whole test data: {}".format(test.shape))
             val1= len(test) - seq_size 
+            # print(val1)
             x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
-            # x_input.shape
+            print("x_input: {}".format(x_input))
+            print("Shape of x_input: {}".format(x_input.shape))
             temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
             temp_input=temp_input[0].tolist()
-            print(temp_input)
+            # print(temp_input)
+            lst_output=[]
+            i=0
+            print("Expected future predictions:", future_predict_size)
+            while(i<future_predict_size):
+                if(len(temp_input)>seq_size):
+                    x_input=np.array(temp_input[1:])
+                    # print("{} input {}".format(i,x_input))
+                    x_input=x_input.reshape(1,-1)
+                    x_input = x_input.reshape((1, seq_size, 1))
+                    print("Shape of x_input IN WHILE LOOP _IF: {}".format(x_input.shape))
+                    yhat = model.predict(x_input, verbose=0)
+                    # print("{} output {}".format(i,yhat))
+                    temp_input.extend(yhat[0].tolist())
+                    temp_input=temp_input[1:]
+                    lst_output.extend(yhat.tolist())
+                    i=i+1
+                else:
+                    x_input = x_input.reshape((1, seq_size, 1))
+                    print("Shape of x_input IN WHILE LOOP _ELSE: {}".format(x_input.shape))
+                    yhat = model.predict(x_input, verbose=0)
+                    # print(yhat[0])
+                    temp_input.extend(yhat[0].tolist())
+                    lst_output.extend(yhat.tolist())
+                    i=i+1
+        elif self.rb_mod5_tab1.isChecked():                   
+            print("test: {}".format(test))
+            print("Shape of whole test data: {}".format(test.shape))
+            val1= len(test) - seq_size 
+            # print(val1)
+            x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
+            print("x_input: {}".format(x_input))
+            print("Shape of x_input: {}".format(x_input.shape))
+            temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
+            temp_input=temp_input[0].tolist()
+            # print(temp_input)
             lst_output=[]
             i=0
             while(i<future_predict_size):
                 if(len(temp_input)>seq_size):
                     x_input=np.array(temp_input[1:])
-                    print("{} input {}".format(i,x_input))
+                    # print("{} input {}".format(i,x_input))
                     x_input=x_input.reshape(1,-1)
                     x_input = x_input.reshape((1, 1, 1, 1, seq_size))
+                    print("Shape of x_input IN WHILE LOOP _IF: {}".format(x_input.shape))
                     yhat = model.predict(x_input, verbose=0)
-                    print("{} output {}".format(i,yhat))
+                    # print("{} output {}".format(i,yhat))
                     temp_input.extend(yhat[0].tolist())
                     temp_input=temp_input[1:]
                     lst_output.extend(yhat.tolist())
                     i=i+1
                 else:
                     x_input = x_input.reshape((1, 1, 1, 1, seq_size))
+                    print("Shape of x_input IN WHILE LOOP _ELSE: {}".format(x_input.shape))
                     yhat = model.predict(x_input, verbose=0)
-                    print(yhat[0])
+                    # print(yhat[0])
                     temp_input.extend(yhat[0].tolist())
                     lst_output.extend(yhat.tolist())
-                    i=i+1
-            print(lst_output)
-            
-            iface.messageBar().clearWidgets()
-            
+                    i=i+1   
+
+        #Stop the timer
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        elapsed_time_print = f"Elapsed Time for {model_name} Model : {elapsed_time} seconds"
+        print_text = converter.handle(elapsed_time_print)
+        print(f"Elapsed Time for Model : {elapsed_time} seconds")        
+        
         # # Make predictions
         trainPredict = model.predict(trainX, verbose=0)
         testPredict = model.predict(testX, verbose=0)
@@ -829,54 +1020,52 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         
         # # Accuracies
         result_text = ""
-        if self.cb_Ac1.isChecked()==True:
+        if self.cb_Ac1_tab1.isChecked()==True:
             # Calculate and display R-squared
             trainScore = r2_score(trainY[0], trainPredict[:,0])
             testScore = r2_score(testY[0], testPredict[:,0])
             print('Train Score: %.2f R2' % (trainScore))
             print('Test Score: %.2f R2' % (testScore))
-            acc_name = self.cb_Ac1.text()
+            acc_name = self.cb_Ac1_tab1.text()
             # Format value with 2 decimal places
             formatted_trainScore = "{:.2f}".format(trainScore)
             formatted_testScore = "{:.2f}".format(testScore) 
             result_text += f"<b><font size='+1'>{acc_name}:</font></b><br>Train Score: {formatted_trainScore}<br>Test Score: {formatted_testScore}<br>"
-        if self.cb_Ac2.isChecked()==True:
+        if self.cb_Ac2_tab1.isChecked()==True:
             # Calculate and display Root Mean Square Error (RMSE)
             trainScore = math.sqrt(mean_squared_error(trainY[0], trainPredict[:,0]))
             testScore = math.sqrt(mean_squared_error(testY[0], testPredict[:,0]))
             print('Train Score: %.2f RMSE' % (trainScore))
             print('Test Score: %.2f RMSE' % (testScore))
-            acc_name = self.cb_Ac2.text()
+            acc_name = self.cb_Ac2_tab1.text()
             # Format value with 2 decimal places
             formatted_trainScore = "{:.2f}".format(trainScore)
             formatted_testScore = "{:.2f}".format(testScore)
             result_text += f"<b><font size='+1'>{acc_name}:</font></b><br>Train Score: {formatted_trainScore}<br>Test Score: {formatted_testScore}<br>"
-        if self.cb_Ac3.isChecked() == True:
+        if self.cb_Ac3_tab1.isChecked() == True:
             # Calculate and display Mean Absolute Error (MAE)
             trainScore = mean_absolute_error(trainY[0], trainPredict[:, 0])
             testScore = mean_absolute_error(testY[0], testPredict[:, 0])
             print('Train Score: %.2f MAE' % (trainScore))
             print('Test Score: %.2f MAE' % (testScore))
-            acc_name = self.cb_Ac3.text()
+            acc_name = self.cb_Ac3_tab1.text()
             # Format value with 2 decimal places
             formatted_trainScore = "{:.2f}".format(trainScore)
             formatted_testScore = "{:.2f}".format(testScore)
             result_text += f"<b><font size='+1'>{acc_name}:</font></b><br>Train Score: {formatted_trainScore}<br>Test Score: {formatted_testScore}<br>"
-        if self.cb_Ac4.isChecked() == True:
+        if self.cb_Ac4_tab1.isChecked() == True:
             # Calculate and display Mean Absolute Percentage Error (MAPE)
             trainScore = mean_absolute_percentage_error(trainY[0], trainPredict[:, 0])
             testScore = mean_absolute_percentage_error(testY[0], testPredict[:, 0])
             print('Train Score: %.2f MAPE' % (trainScore))
             print('Test Score: %.2f MAPE' % (testScore))
-            acc_name = self.cb_Ac4.text()
+            acc_name = self.cb_Ac4_tab1.text()
             # Format value with 2 decimal places
             formatted_trainScore = "{:.2f}".format(trainScore)
             formatted_testScore = "{:.2f}".format(testScore)
             result_text += f"<b><font size='+1'>{acc_name}:</font></b><br>Train Score: {formatted_trainScore}<br>Test Score: {formatted_testScore}<br>"
-        if not any([self.cb_Ac1.isChecked(), self.cb_Ac2.isChecked(), self.cb_Ac3.isChecked(), self.cb_Ac4.isChecked()]):
+        if not any([self.cb_Ac1_tab1.isChecked(), self.cb_Ac2_tab1.isChecked(), self.cb_Ac3_tab1.isChecked(), self.cb_Ac4_tab1.isChecked()]):
             result_text = "No accuracy selected"
-        # Create an instance of the html2text converter
-        converter = html2text.HTML2Text()
         # Convert the result_text to plain text
         plain_text = converter.handle(result_text)
             
@@ -887,13 +1076,938 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         model_summary = s.getvalue()
         s.close()
 
-   
+        iface.messageBar().clearWidgets()    
+            
+        # Show a success message in a pop-up window
+        QMessageBox.information(None, "Forecast Finished", "Forecasting has finished. Click on 'Results' to see the results.")        
+  
+    def show_Results_tab1(self):
+        
+        # # Check if df is defined (i.e., the user uploaded a file)
+        # if 'df' not in globals():
+            # # Display a custom error message box in QGIS
+            # msg = QMessageBox()
+            # msg.setIcon(QMessageBox.Critical)
+            # msg.setText("Error: Please upload an input file before Forecast.")
+            # msg.setWindowTitle("Error")
+            # msg.exec_()
+            # return  # Exit the function
+            
+        # # Check if a forecasting model is selected
+        # if not self.rb_mod1_tab1.isChecked() and not self.rb_mod2_tab1.isChecked() and not self.rb_mod3_tab1.isChecked() and not self.rb_mod4_tab1.isChecked() and not self.rb_mod5_tab1.isChecked():
+            # # Display a custom error message box in QGIS
+            # msg = QMessageBox()
+            # msg.setIcon(QMessageBox.Critical)
+            # msg.setText("Error: Please select a forecasting model.")
+            # msg.setWindowTitle("Error")
+            # msg.exec_()
+            # return  # Exit the function           
+            
         # # Dialog : Results Visualization  
         dialog=Dialog()
         self.dialogs.append(dialog)
         dialog.show()
         dialog.raise_()  # Bring the dialog to the front
-  
+
+##Tab1 End - CSV file ----------------------------------------------------------------------------------------------------------------------------------------
+
+##Tab2 Start - Geotiff file ----------------------------------------------------------------------------------------------------------------------------------------
+
+##### START----------------------------------- METHODS FOR uploading GeoTIFF
+    def read_geotiff(self, file_path, rows, cols): #used for "upload_GeoTIFF_folder" method
+        dataset = gdal.Open(file_path)
+        band = dataset.GetRasterBand(1)
+        data = band.ReadAsArray()
+        return data.flatten().tolist()
+    
+    def read_geotiff_folder(self, folder_path): #used for "upload_GeoTIFF_folder" method
+        global dates
+        global projection
+        global geotransform
+        global rows
+        global cols
+        dates = []
+        pixel_values = []
+
+        # Get dimensions and spatial information from the first GeoTIFF file in the directory
+        first_file = os.listdir(folder_path)[0]
+        first_file_path = os.path.join(folder_path, first_file)
+        dataset = gdal.Open(first_file_path)
+        projection = dataset.GetProjection()
+        geotransform = dataset.GetGeoTransform()
+        rows, cols = dataset.RasterYSize, dataset.RasterXSize
+        #print(projection)
+        print(geotransform)
+        print(f'number of pixels X : rows={rows}')
+        print(f'number of pixels Y : cols={cols}')
+        
+        for filename in os.listdir(folder_path):
+            if filename.endswith(".tif"):
+                # Extract date from filename (assuming filename format like "YYYYMMDD.tif")
+                date_str = filename.split(".")[0]
+                try:
+                    # Convert date string to datetime object
+                    date = datetime.datetime.strptime(date_str, "%Y%m%d").date()
+                    # Format datetime object to "dd.mm.yyyy"
+                    formatted_date = date.strftime("%d.%m.%Y")
+                except ValueError:
+                    # If the filename doesn't follow the expected format, use sequential numbering
+                    formatted_date = str(len(dates) + 1)
+                    
+
+                dates.append(formatted_date)
+
+                # Read pixel values from GeoTIFF
+                file_path = os.path.join(folder_path, filename)
+                pixel_values.append(self.read_geotiff(file_path, rows, cols))
+        print(dates)
+        print(pixel_values)
+
+        # Create DataFrame
+        DataFrame = pd.DataFrame(pixel_values, columns=[f"pixel({i}-{j})" for i in range(rows) for j in range(cols)])
+        DataFrame.insert(0, "Date", dates)
+
+        return DataFrame
+        
+    def upload_GeoTIFF_folder (self):
+        global df
+        
+        # Open a file dialog to select a folder containing GeoTIFF files
+        folder_path = QFileDialog.getExistingDirectory(self, 'Select GeoTIFF Folder', '')
+        # Check if the user canceled the dialog
+        if not folder_path:
+            return  # Exit the function if the user canceled
+            
+        # Once the progress bar completes, continue with processing the folder path
+        try:
+            #Progress
+            progressMessageBar = iface.messageBar().createMessage("Executing...")
+            progress = QProgressBar()
+            progress.setMaximum(10)
+            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+            progressMessageBar.layout().addWidget(progress)
+            iface.messageBar().pushWidget(progressMessageBar, Qgis.Info)
+            for i in range(10):
+                time.sleep(1)
+                progress.setValue(i+1)
+            # Set the selected folder path in the QLineEdit
+            self.le_geotiff.setText(folder_path)
+            # Read GeoTIFF files and convert to DataFrame
+            DataFrame = self.read_geotiff_folder(folder_path)
+            # Now you have the DataFrame, you can use it in your application
+            print(DataFrame)
+            # df_des=DataFrame.describe()
+            # print(f'df description is: {df_des}')
+            # df_inf=DataFrame.info()
+            # print(f'df information is: {df_inf}')
+            # Create a new DataFrame excluding the "Date" column
+            df = DataFrame.drop(columns=['Date'])
+            print(df)
+        except Exception as e:
+            QMessageBox.warning(self, 'Error', f'An error occurred while processing the GeoTIFF files: {str(e)}')
+            # Optionally, clear the QLineEdit
+            self.le_geotiff.clear()
+            iface.messageBar().clearWidgets()
+##### END----------------------------------- METHODS FOR uploading GeoTIFF
+
+    def onRadioBtn_tab2(self):
+        global model_name
+        if self.rb_mod1_tab2.isChecked():
+            self.spinBox3_tab2.setEnabled(True)
+            # self.pb_params_tab2.setEnabled(True)
+            model_name = self.rb_mod1_tab2.text()
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+        elif self.rb_mod2_tab2.isChecked():
+            self.spinBox3_tab2.setEnabled(True)
+            # self.pb_params_tab2.setEnabled(True)
+            model_name = self.rb_mod2_tab2.text()
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+        elif self.rb_mod3_tab2.isChecked():
+            self.spinBox3_tab2.setEnabled(True)
+            # self.pb_params_tab2.setEnabled(True)
+            model_name = self.rb_mod3_tab2.text()
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+        elif self.rb_mod4_tab2.isChecked():
+            self.spinBox3_tab2.setEnabled(False)
+            # self.pb_params_tab2.setEnabled(True)
+            model_name = self.rb_mod4_tab2.text()
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+        elif self.rb_mod5_tab2.isChecked():
+            self.spinBox3_tab2.setEnabled(True)
+            # self.pb_params_tab2.setEnabled(True)
+            model_name = self.rb_mod5_tab2.text()
+            """Display instructions after the user selects the model."""
+            # Message Box with information on next steps
+            message = (
+                "Now you need to enter the model hyperparameters. "
+                "You can either set them manually or use the automatic hyperparameter button. "
+                "\n\n"
+                "To use the automatic hyperparameters, you must first enter a sequence size.\n\n"
+                "Sequence size represents the number of time steps in the data that the model will learn from. "
+                "It defines how much historical data the model uses to predict the next values."
+            )
+            QMessageBox.information(self, "Next Step", message)
+
+    def to_sequences_tab2(self):
+        global seq_size
+        seq_size = self.spinBox1_tab2.value()
+        self.pb_params_tab2.setEnabled(True)
+        
+    def to_filters_layer1_tab2(self):
+        global filters_1
+        filters_1 = self.spinBox2_tab2.value()
+
+    def to_filters_layer2_tab2(self):
+        global filters_2
+        filters_2 = self.spinBox3_tab2.value()
+        
+    def to_epochs_tab2(self):
+        global epochs
+        epochs = self.spinBox4_tab2.value()    
+        
+    def to_batch_tab2(self):
+        global n_batch
+        n_batch = self.spinBox5_tab2.value()
+        
+    def to_Predictions_tab2(self):
+        global future_predict_size
+        future_predict_size = self.spinBox6_tab2.value()
+
+##### START----------------------------------- METHODS FOR AUTOMATIC HYPERPARAMETERS (for geotiff tab the input is the mean value of df columns)      
+    def create_model_tab2(self, filters_1, filters_2=None):  # Set filters_2 to None by default (model4 require it) # used for "auto_parameters" and "choose_FC_tab2" methods
+        global model
+        if self.rb_mod1_tab2.isChecked():
+            print("Model 1 selected")
+            model = Sequential()
+            model.add(Dense(filters_1, input_dim=seq_size, activation='relu')) 
+            if filters_2 is not None:  # Only add if filters_2 is provided
+                model.add(Dense(filters_2, activation='relu'))
+            model.add(Dense(1))
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])
+        
+        elif self.rb_mod2_tab2.isChecked():
+            print("Model 2 selected")
+            model = Sequential()
+            model.add(LSTM(filters_1, input_shape=(seq_size, 1)))
+            if filters_2 is not None:
+                model.add(Dense(filters_2))
+            model.add(Dense(1))
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])
+        
+        elif self.rb_mod3_tab2.isChecked():
+            print("Model 3 selected")
+            model = Sequential()
+            model.add(LSTM(filters_1, activation='relu', return_sequences=True, input_shape=(seq_size, 1)))
+            model.add(LSTM(filters_1, activation='relu'))
+            if filters_2 is not None:
+                model.add(Dense(filters_2))
+            model.add(Dense(1))
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])
+        
+        elif self.rb_mod4_tab2.isChecked():
+            print("Model 4 (Bidirectional LSTM) selected")
+            model = Sequential()
+            model.add(Bidirectional(LSTM(filters_1, activation='relu'), input_shape=(seq_size, 1)))
+            model.add(Dense(1))
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])
+        
+        elif self.rb_mod5_tab2.isChecked():
+            print("Model 5 (ConvLSTM2D) selected")
+            model = Sequential()
+            model.add(ConvLSTM2D(filters_1, kernel_size=(1,1), activation='relu', input_shape=(1, 1, 1, seq_size)))
+            model.add(Flatten())
+            if filters_2 is not None:
+                model.add(Dense(filters_2))
+            model.add(Dense(1))
+            model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])
+        
+        return model
+
+    def matrix_dataset_tab2(self): # used in 'auto_parameters_tab2' method, this method help use the automatic hyperparams option
+        """
+        Uses the uploaded GeoTIFF DataFrame (df), computes mean values for each raster, normalizes them, and splits into training/testing sets.       
+        Returns:
+            trainX, trainY, testX, testY
+        """      
+        global df
+        global seq_size
+        global dates
+        global trainX
+        global testX
+        global trainY
+        global testY
+        global scaler
+        
+        if df is None or df.empty:
+            QMessageBox.warning(self, 'Error', 'No GeoTIFF data found. Please upload a GeoTIFF dataset first.')
+            return None, None, None, None
+
+        print("I am in matrix dataset")
+        #Compute the mean value for each raster (each row in df)
+        df_mean = df.mean(axis=1)  # Mean across all columns (excluding Date)        
+        # Convert to a DataFrame with a single column
+        df_mean = pd.DataFrame(df_mean, columns=['MeanValue'])      
+
+        # # Work with the mean values of df
+        dataset = df_mean.values
+        # # Convert values to float
+        dataset = dataset.astype('float32')
+        print("Mean dataset: {}".format(dataset))
+        # # Normalize the dataset using MinMaxScaler 
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        dataset = scaler.fit_transform(dataset)
+        # # take first 60% values for train and the remaining 1/3 for testing
+        train_size = int(len(dataset) * 0.66)
+        test_size = len(dataset) - train_size
+        # # split into train and test sets
+        train, test = dataset[0:train_size,:], dataset[train_size:len(dataset),:]
+        print("test: {}".format(test))
+        print("Shape of whole test data: {}".format(test.shape))    
+        
+        # # split dates into train and test dates
+        train_dates_size = int(len(dates) * 0.66)
+        test_dates_size = len(dates) - train_dates_size
+        train_dates, test_dates = dates[seq_size:train_dates_size], dates[train_dates_size+seq_size:]
+        print(type(train_dates), type(test_dates))
+        print("train_dates: {}".format(train_dates))
+        print("test_dates: {}".format(test_dates))         
+        # Make `train_dates` and `test_dates` are Pandas Series with datetime values
+        train_dates = pd.to_datetime(train_dates)
+        test_dates = pd.to_datetime(test_dates)        
+        # Convert to NumPy array and flatten
+        train_dates = np.array(train_dates).flatten()
+        test_dates = np.array(test_dates).flatten()
+
+        # # Convert an array of values into a dataset matrix
+        xi = []
+        yi = []
+        xj = []
+        yj = []
+        for i in range(len(train)-seq_size):
+            window = train[i:(i+seq_size), 0]
+            xi.append(window)
+            yi.append(train[i+seq_size, 0])
+            trainX = np.array(xi)
+            trainY = np.array(yi)
+        
+        for j in range(len(test)-seq_size):
+            window = test[j:(j+seq_size), 0]
+            xj.append(window)
+            yj.append(test[j+seq_size, 0])
+            testX = np.array(xj)
+            testY = np.array(yj) 
+        print("Shape of training set: {}".format(trainX.shape))
+        print("Shape of test set: {}".format(testX.shape))
+        print("trainX: {}".format(trainX))
+        print("trainY: {}".format(trainY))
+        print("testX: {}".format(testX))
+        print("testY: {}".format(testY))
+        
+        if self.rb_mod2_tab2.isChecked() or self.rb_mod3_tab2.isChecked() or self.rb_mod4_tab2.isChecked():
+            #Reshape input to be [samples, time steps, features]
+            trainX = np.reshape(trainX, (trainX.shape[0], trainX.shape[1], 1))
+            testX = np.reshape(testX, (testX.shape[0], testX.shape[1], 1))
+            print("New Shape of training set: {}".format(trainX.shape))
+            print("New Shape of test set: {}".format(testX.shape))
+        elif self.rb_mod5_tab2.isChecked():
+            #Reshape input
+            trainX = trainX.reshape((trainX.shape[0], 1, 1, 1, seq_size))
+            testX = testX.reshape((testX.shape[0], 1, 1, 1, seq_size))
+            print("Shape of training set: {}".format(trainX.shape))
+            print("Shape of test set: {}".format(testX.shape))   
+            
+        return trainX, trainY, testX, testY
+    
+    def fit_model_tab2(self, trainX, trainY, testX, testY, n_batch, epochs, filters_1, filters_2): #used for "auto_parameters" method
+        # define model
+        # model = self.create_model_tab2(filters_1, filters_2)
+        # Model calling
+        if self.rb_mod4_tab2.isChecked():
+            model = self.create_model_tab2(filters_1)  # No filters_2 needed
+            if model is None:
+                return  # Exit the function if model creation failed   
+        elif self.rb_mod1_tab2.isChecked() or self.rb_mod2_tab2.isChecked() or self.rb_mod3_tab2.isChecked() or self.rb_mod5_tab2.isChecked():
+            model = self.create_model_tab2(filters_1, filters_2) # For models that need filters_2
+            if model is None:
+                return  # Exit the function if model creation failed        
+        # fit model
+        history = model.fit(trainX, trainY, validation_data=(testX, testY), epochs=epochs, verbose=0, batch_size=n_batch)
+    
+        train_mae = history.history['mae']
+        val_mae = history.history['val_mae']
+    
+        mean_train_mae = sum(train_mae) / len(train_mae)
+        mean_val_mae = sum(val_mae) / len(val_mae)
+    
+        return mean_train_mae, mean_val_mae
+     
+    def auto_parameters_tab2(self): # Function to generate the best parameters
+        # Initialize global variables
+        global trainX
+        global testX
+        global trainY
+        global testY
+        global trainPredict
+        global testPredict
+
+        # Check if df is defined (i.e., the user uploaded a file)
+        if 'df' not in globals():
+            # Display a custom error message box in QGIS
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Error: Please upload an input file before Forecast.")
+            msg.setWindowTitle("Error")
+            msg.exec_()
+            return  # Exit the function
+        
+        # Ask the user if they want to proceed with generating model hyperparameters
+        reply = QMessageBox.question(self, "Generate Model Hyperparameters", 
+                                  "Generating model hyperparameters automatically may take some time. Do you want to proceed?", 
+                                  QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.No:
+            return  # User chose not to proceed
+            
+        # Display "Please wait" message while the training is happening
+        progress_box = QMessageBox()
+        progress_box.setWindowTitle("Training Progress, please wait")
+        progress_box.setText("Please wait, generating hyperparameters...")
+        progress_box.setStandardButtons(QMessageBox.NoButton)  # Remove any buttons, just show the message
+        progress_box.setIcon(QMessageBox.Information)  # Optionally, you can change the icon
+        progress_box.show()  # Show the "Please wait" message
+        
+        # Generate dataset before training
+        trainX, trainY, testX, testY = self.matrix_dataset_tab2()
+
+        # Ensure data is valid before proceeding
+        if trainX is None or trainY is None or testX is None or testY is None:
+            QMessageBox.warning(self, "Error", "Dataset generation failed. Check input data.")
+            return         
+
+        # Check if the selected model is BiLSTM
+        is_bilstm = self.rb_mod4_tab2.isChecked()
+        
+        # Define parameter lists
+        batch_sizes = [32, 64]#, 128, 256]
+        neurons1_list = [30, 50]#, 100]
+        neurons2_list = [20, 30]#, 60]
+        epochs_list = [20, 50]#, 100]
+        
+        mean_accuracies = []
+
+        # Total number of combinations to display at the end
+        total_combinations = len(batch_sizes) * len(neurons1_list) * len(neurons2_list) * len(epochs_list)
+        best_combination = None
+        best_val_mae = float('inf')  # Initialize with a very high value
+        
+        count = 0
+        for n_batch in batch_sizes:
+            for filters_1 in neurons1_list:
+                for filters_2 in neurons2_list:
+                    for epochs in epochs_list:
+                        count += 1
+                        # Call the fit_model_tab2 method to train the model
+                        mean_train_mae, mean_val_mae = self.fit_model_tab2(trainX, trainY, testX, testY, n_batch, epochs, filters_1, filters_2)                    
+                        
+                        # Save the parameters and performance
+                        mean_accuracies.append((n_batch, filters_1, filters_2, epochs, mean_train_mae, mean_val_mae))
+
+                        # Check if this is the best validation MAE so far
+                        if mean_val_mae < best_val_mae:
+                            best_val_mae = mean_val_mae
+                            best_combination = (n_batch, filters_1, filters_2, epochs)
+                            
+        # Close the "Please wait" message
+        progress_box.close()
+
+        # After training is finished, show the best parameters found            
+        if best_combination:
+            best_batch, best_filters_1, best_filters_2, best_epochs = best_combination
+
+            # Create a message without filters_2 for BiLSTM
+            best_message = f"Best Hyperparameters found:\nBatch Size: {best_batch}\nMain Layer Neurons: {best_filters_1}\nEpochs: {best_epochs}\nValidation MAE: {best_val_mae:.4f}"            
+            if not is_bilstm:
+                best_message += f"\nDense Layer Neurons: {best_filters_2}"
+            
+            QMessageBox.information(self, "Best Hyperparameters", best_message)            
+           
+        # Update the values of the spin boxes in the plugin interface
+        self.spinBox2_tab2.setValue(best_filters_1)
+        # self.spinBox3_tab2.setValue(best_filters_2)
+        self.spinBox4_tab2.setValue(best_epochs)
+        self.spinBox5_tab2.setValue(best_batch)
+        if not is_bilstm:
+            self.spinBox3_tab2.setValue(best_filters_2)  # Only update if needed
+        else:
+            self.spinBox3_tab2.setValue(0)  # Set to 0 or hide it if possible        
+        
+        # Model calling
+        if self.rb_mod4_tab2.isChecked():
+            model = self.create_model_tab2(best_filters_1)  # No filters_2 needed
+            if model is None:
+                return  # Exit the function if model creation failed   
+        elif self.rb_mod1_tab2.isChecked() or self.rb_mod2_tab2.isChecked() or self.rb_mod3_tab2.isChecked() or self.rb_mod5_tab2.isChecked():
+            model = self.create_model_tab2(best_filters_1, best_filters_2) # For models that need filters_2
+            if model is None:
+                return  # Exit the function if model creation failed
+        print("Shape of trainX(before fit):", trainX.shape)  # Should be (num_samples, seq_size, 1) if model1 is selected
+        print("Shape of trainY(before fit):", trainY.shape)  # Should be (num_samples,) if model1 is selected
+        print("Shape of testX(before fit):", testX.shape)
+        print("Shape of testY(before fit):", testY.shape)
+        model.fit(trainX, trainY, validation_data=(testX, testY), verbose=0, epochs=best_epochs, batch_size=best_batch)    
+
+        # Make predictions
+        trainPredict = model.predict(trainX, verbose=0)
+        testPredict = model.predict(testX, verbose=0)
+        
+        # Invert predictions back to prescaled values
+        trainPredict = scaler.inverse_transform(trainPredict)
+        trainY = scaler.inverse_transform([trainY])
+        testPredict = scaler.inverse_transform(testPredict)
+        testY = scaler.inverse_transform([testY])             
+##### END----------------------------------- METHODS FOR AUTOMATIC HYPERPARAMETERS
+
+    def choose_FC_tab2(self):
+        global df
+        global future_predict
+        global future_results
+        global test
+        global scaler
+        global model
+        global results_array
+        global plain_text
+        
+        
+        # Check if df is defined (i.e., the user uploaded a file)
+        if 'df' not in globals():
+            # Display a custom error message box in QGIS
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Error: Please upload an input folder before Forecast.")
+            msg.setWindowTitle("Error")
+            msg.exec_()
+            return  # Exit the function
+        # Check if a forecasting model is selected
+        if not self.rb_mod1_tab2.isChecked() and not self.rb_mod2_tab2.isChecked() and not self.rb_mod3_tab2.isChecked() and not self.rb_mod4_tab2.isChecked() and not self.rb_mod5_tab2.isChecked():
+            # Display a custom error message box in QGIS
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Error: Please select a forecasting model.")
+            msg.setWindowTitle("Error")
+            msg.exec_()
+            return  # Exit the function 
+            
+        # Check if the hyperparameters spin boxes are filled before forecasting
+        # Retrieve hyperparameters directly from the spin boxes
+        seq_size = self.spinBox1_tab2.value()
+        filters_1 = self.spinBox2_tab2.value()
+        filters_2 = self.spinBox3_tab2.value()
+        epochs = self.spinBox4_tab2.value()
+        n_batch = self.spinBox5_tab2.value()
+        future_predict_size = self.spinBox6_tab2.value()               
+        # Check if BiLSTM is selected
+        is_bilstm = self.rb_mod4_tab2.isChecked()
+        # Check for missing values (zero means not set)
+        missing_params = []
+        if seq_size == 0:
+            missing_params.append("Sequence Size")
+        if filters_1 == 0:
+            missing_params.append("Main Layer Neurons")
+        if not is_bilstm and filters_2 == 0:  # Only check filters_2 if NOT BiLSTM
+            missing_params.append("Dense Layer Neurons")
+        if epochs == 0:
+            missing_params.append("Epochs")
+        if n_batch == 0:
+            missing_params.append("Batch Size")
+        if future_predict_size == 0:
+            missing_params.append("Prediction Size")
+        # If there are missing parameters, show an error message and stop execution
+        if missing_params:
+            error_message = "Error: Please enter values for the following hyperparameters:\n" + "\n".join(missing_params)
+            QMessageBox.critical(self, "Missing Hyperparameters", error_message)
+            return  # Stop execution 
+
+        # Activate Results button
+        self.pb_results_tab2.setEnabled(True)             
+            
+        #Progress
+        progressMessageBar = iface.messageBar().createMessage("Executing...")
+        progress = QProgressBar()
+        progress.setMaximum(10)
+        progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+        progressMessageBar.layout().addWidget(progress)
+        iface.messageBar().pushWidget(progressMessageBar, Qgis.Info) 
+        for i in range(10):
+            time.sleep(1)
+            progress.setValue(i+1)               
+            
+        # Initialize an empty DataFrame to store future predictions for all pixel points
+        df_all_results = pd.DataFrame()
+        
+        for column in df.columns: 
+            # # Create a DataFrame with only the current column
+            current_df = df[[column]]
+            # # Convert values to float
+            dataset = current_df.values
+            dataset = dataset.astype('float32')
+            # # Normalize the dataset using MinMaxScaler 
+            scaler = MinMaxScaler(feature_range=(0, 1))
+            dataset = scaler.fit_transform(dataset)
+            # # take first 60% values for train and the remaining 1/3 for testing
+            train_size = int(len(dataset) * 0.66)
+            test_size = len(dataset) - train_size
+            # # split into train and test sets
+            train, test = dataset[0:train_size,:], dataset[train_size:len(dataset),:]
+            print("test: {}".format(test))
+            print("Shape of whole test data: {}".format(test.shape))
+            # # split dates into train and test dates
+            train_dates_size = int(len(dates) * 0.66)
+            test_dates_size = len(dates) - train_dates_size
+            train_dates, test_dates = dates[seq_size:train_dates_size], dates[train_dates_size+seq_size:]
+
+            # # Convert an array of values into a dataset matrix
+            #Initialize lists to store trainX, trainY, testX, and testY
+            xi = []
+            yi = []
+            xj = []
+            yj = []
+            for i in range(len(train)-seq_size):
+                window = train[i:(i+seq_size), 0]
+                xi.append(window)
+                yi.append(train[i+seq_size, 0])
+                trainX = np.array(xi) 
+                trainY = np.array(yi) 
+            
+            for j in range(len(test)-seq_size):
+                window = test[j:(j+seq_size), 0]
+                xj.append(window)
+                yj.append(test[j+seq_size, 0])
+                testX = np.array(xj) 
+                testY = np.array(yj) 
+            print("Shape of training set trainX: {}".format(trainX.shape))
+            print("Shape of test set testX: {}".format(testX.shape))
+            print("trainX: {}".format(trainX))
+            print("trainY: {}".format(trainY))
+            print("testX: {}".format(testX))
+            print("testY: {}".format(testY))
+            
+            if self.rb_mod2_tab2.isChecked() or self.rb_mod3_tab2.isChecked() or self.rb_mod4_tab2.isChecked():
+                print("Inside reshaping !!")
+                #Reshape input to be [samples, time steps, features]
+                trainX = np.reshape(trainX, (trainX.shape[0], trainX.shape[1], 1))
+                testX = np.reshape(testX, (testX.shape[0], testX.shape[1], 1))
+                print("New Shape of training set: {}".format(trainX.shape))
+                print("New Shape of test set: {}".format(testX.shape))
+                print("trainX: {}".format(trainX))
+                print("trainY: {}".format(trainY))
+                print("testX: {}".format(testX))
+                print("testY: {}".format(testY))                 
+            elif self.rb_mod5_tab2.isChecked():
+                #Reshape input
+                trainX = trainX.reshape((trainX.shape[0], 1, 1, 1, seq_size))
+                testX = testX.reshape((testX.shape[0], 1, 1, 1, seq_size))
+                print("Shape of training set: {}".format(trainX.shape))
+                print("Shape of test set: {}".format(testX.shape))                 
+                print("trainX: {}".format(trainX))
+                print("trainY: {}".format(trainY))
+                print("testX: {}".format(testX))
+                print("testY: {}".format(testY))            
+
+            # Model calling
+            if self.rb_mod4_tab2.isChecked():
+                model = self.create_model_tab2(filters_1)  # No filters_2 needed
+                if model is None:
+                    return  # Exit the function if model creation failed   
+            elif self.rb_mod1_tab2.isChecked() or self.rb_mod2_tab2.isChecked() or self.rb_mod3_tab2.isChecked() or self.rb_mod5_tab2.isChecked():
+                model = self.create_model_tab2(filters_1, filters_2) # For models that need filters_2
+                if model is None:
+                    return  # Exit the function if model creation failed
+            print("Shape of trainX(before fit):", trainX.shape)  # Should be (num_samples, seq_size, 1) if model1 is selected
+            print("Shape of trainY(before fit):", trainY.shape)  # Should be (num_samples,) if model1 is selected
+            print("Shape of testX(before fit):", testX.shape)
+            print("Shape of testY(before fit):", testY.shape)
+            model.fit(trainX, trainY, validation_data=(testX, testY), verbose=0, epochs=epochs, batch_size=n_batch)  
+                    
+                
+            # Future forecasting
+            if self.rb_mod1_tab2.isChecked() or self.rb_mod2_tab2.isChecked() or self.rb_mod3_tab2.isChecked() or self.rb_mod4_tab2.isChecked():  
+                print("test: {}".format(test))
+                print("Shape of whole test data: {}".format(test.shape))
+                val1= len(test) - seq_size 
+                # print(val1)
+                x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
+                print("x_input: {}".format(x_input))
+                print("Shape of x_input: {}".format(x_input.shape))
+                temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
+                temp_input=temp_input[0].tolist()
+                # print(temp_input)
+                lst_output=[]
+                i=0
+                print("Expected future predictions:", future_predict_size)
+                while(i<future_predict_size):
+                    if(len(temp_input)>seq_size):
+                        x_input=np.array(temp_input[1:])
+                        # print("{} input {}".format(i,x_input))
+                        x_input=x_input.reshape(1,-1)
+                        x_input = x_input.reshape((1, seq_size, 1))
+                        print("Shape of x_input IN WHILE LOOP _IF: {}".format(x_input.shape))
+                        yhat = model.predict(x_input, verbose=0)
+                        # print("{} output {}".format(i,yhat))
+                        temp_input.extend(yhat[0].tolist())
+                        temp_input=temp_input[1:]
+                        lst_output.extend(yhat.tolist())
+                        i=i+1
+                    else:
+                        x_input = x_input.reshape((1, seq_size, 1))
+                        print("Shape of x_input IN WHILE LOOP _ELSE: {}".format(x_input.shape))
+                        yhat = model.predict(x_input, verbose=0)
+                        # print(yhat[0])
+                        temp_input.extend(yhat[0].tolist())
+                        lst_output.extend(yhat.tolist())
+                        i=i+1
+            elif self.rb_mod5_tab2.isChecked():                   
+                print("test: {}".format(test))
+                print("Shape of whole test data: {}".format(test.shape))
+                val1= len(test) - seq_size 
+                # print(val1)
+                x_input=test[val1:].reshape(1,-1) #an array that have the last values in test dataset
+                print("x_input: {}".format(x_input))
+                print("Shape of x_input: {}".format(x_input.shape))
+                temp_input=list(x_input) #converting the NumPy array "x_input" back into a Python list
+                temp_input=temp_input[0].tolist()
+                # print(temp_input)
+                lst_output=[]
+                i=0
+                while(i<future_predict_size):
+                    if(len(temp_input)>seq_size):
+                        x_input=np.array(temp_input[1:])
+                        # print("{} input {}".format(i,x_input))
+                        x_input=x_input.reshape(1,-1)
+                        x_input = x_input.reshape((1, 1, 1, 1, seq_size))
+                        print("Shape of x_input IN WHILE LOOP _IF: {}".format(x_input.shape))
+                        yhat = model.predict(x_input, verbose=0)
+                        # print("{} output {}".format(i,yhat))
+                        temp_input.extend(yhat[0].tolist())
+                        temp_input=temp_input[1:]
+                        lst_output.extend(yhat.tolist())
+                        i=i+1
+                    else:
+                        x_input = x_input.reshape((1, 1, 1, 1, seq_size))
+                        print("Shape of x_input IN WHILE LOOP _ELSE: {}".format(x_input.shape))
+                        yhat = model.predict(x_input, verbose=0)
+                        # print(yhat[0])
+                        temp_input.extend(yhat[0].tolist())
+                        lst_output.extend(yhat.tolist())
+                        i=i+1
+                        
+            future_predict = scaler.inverse_transform(lst_output)
+            
+            # Values in dataframe
+            future_results = pd.DataFrame(data={'Future Predictions':future_predict[:,0]})
+            # Concatenate the predictions for the current pixel point to the main DataFrame along the columns
+            df_all_results = pd.concat([df_all_results, future_results], axis=1)
+            
+            print(future_results)
+        
+        print(df_all_results)
+        # Save the DataFrame (df_all_results) as a numpy array
+        results_array = df_all_results.values
+        
+        # Check if at least one accuracy metric checkbox is checked
+        if any([
+            self.cb_Ac1_tab2.isChecked(),
+            self.cb_Ac2_tab2.isChecked(),
+            self.cb_Ac3_tab2.isChecked(),
+            self.cb_Ac4_tab2.isChecked()
+        ]):
+            # Generate dataset before training
+            trainX, trainY, testX, testY = self.matrix_dataset_tab2()
+
+            # Model calling
+            if self.rb_mod4_tab2.isChecked():
+                model = self.create_model_tab2(filters_1)  # No filters_2 needed
+            else:
+                model = self.create_model_tab2(filters_1, filters_2)  # Models that need filters_2
+
+            if model is None:
+                return  # Exit if model creation failed
+
+            print("Shape of trainX(before fit):", trainX.shape)  
+            print("Shape of trainY(before fit):", trainY.shape)  
+            print("Shape of testX(before fit):", testX.shape)
+            print("Shape of testY(before fit):", testY.shape)
+
+            model.fit(trainX, trainY, validation_data=(testX, testY), verbose=0, epochs=epochs, batch_size=n_batch)
+
+            # Make predictions
+            trainPredict = model.predict(trainX, verbose=0)
+            testPredict = model.predict(testX, verbose=0)
+
+            # Invert predictions back to prescaled values
+            trainPredict = scaler.inverse_transform(trainPredict)
+            trainY = scaler.inverse_transform([trainY])
+            testPredict = scaler.inverse_transform(testPredict)
+            testY = scaler.inverse_transform([testY]) 
+
+            # Prepare accuracy results
+            result_text = ""
+
+            if self.cb_Ac1_tab2.isChecked():
+                trainScore = r2_score(trainY[0], trainPredict[:, 0])
+                testScore = r2_score(testY[0], testPredict[:, 0])
+                acc_name = self.cb_Ac1_tab2.text()
+                result_text += f"<b><font size='+1'>{acc_name}:</font></b><br>Train Score: {trainScore:.2f}<br>Test Score: {testScore:.2f}<br>"
+
+            if self.cb_Ac2_tab2.isChecked():
+                trainScore = math.sqrt(mean_squared_error(trainY[0], trainPredict[:, 0]))
+                testScore = math.sqrt(mean_squared_error(testY[0], testPredict[:, 0]))
+                acc_name = self.cb_Ac2_tab2.text()
+                result_text += f"<b><font size='+1'>{acc_name}:</font></b><br>Train Score: {trainScore:.2f}<br>Test Score: {testScore:.2f}<br>"
+
+            if self.cb_Ac3_tab2.isChecked():
+                trainScore = mean_absolute_error(trainY[0], trainPredict[:, 0])
+                testScore = mean_absolute_error(testY[0], testPredict[:, 0])
+                acc_name = self.cb_Ac3_tab2.text()
+                result_text += f"<b><font size='+1'>{acc_name}:</font></b><br>Train Score: {trainScore:.2f}<br>Test Score: {testScore:.2f}<br>"
+
+            if self.cb_Ac4_tab2.isChecked():
+                trainScore = mean_absolute_percentage_error(trainY[0], trainPredict[:, 0])
+                testScore = mean_absolute_percentage_error(testY[0], testPredict[:, 0])
+                acc_name = self.cb_Ac4_tab2.text()
+                result_text += f"<b><font size='+1'>{acc_name}:</font></b><br>Train Score: {trainScore:.2f}<br>Test Score: {testScore:.2f}<br>"
+
+            # Convert HTML to plain text
+            converter = html2text.HTML2Text()
+            plain_text = converter.handle(result_text)
+        else:
+            plain_text = "No accuracy metric was selected."
+            
+        iface.messageBar().clearWidgets()    
+            
+        # Show a success message in a pop-up window
+        QMessageBox.information(None, "Forecast Finished", "Forecasting has finished. Click on 'Results' to save GeoTIFFs.")
+        
+    def show_Results_tab2(self):
+        global projection
+        global geotransform
+        global rows
+        global cols
+        global results_array
+        # global plain_text
+        
+        # # Check if df is defined (i.e., the user uploaded a file)
+        # if 'df' not in globals():
+            # # Display a custom error message box in QGIS
+            # msg = QMessageBox()
+            # msg.setIcon(QMessageBox.Critical)
+            # msg.setText("Error: Please upload an input file before Forecast.")
+            # msg.setWindowTitle("Error")
+            # msg.exec_()
+            # return  # Exit the function
+            
+        # # Check if a forecasting model is selected
+        # if not self.rb_mod1_tab2.isChecked() and not self.rb_mod2_tab2.isChecked() and not self.rb_mod3_tab2.isChecked() and not self.rb_mod4_tab2.isChecked() and not self.rb_mod5_tab2.isChecked():
+            # # Display a custom error message box in QGIS
+            # msg = QMessageBox()
+            # msg.setIcon(QMessageBox.Critical)
+            # msg.setText("Error: Please select a forecasting model.")
+            # msg.setWindowTitle("Error")
+            # msg.exec_()
+            # return  # Exit the function 
+        
+        # Ask user for output directory
+        output_directory = QFileDialog.getExistingDirectory(None, "Select Output Directory")
+        
+        # Check if user canceled the selection
+        if not output_directory:
+            QMessageBox.warning(None, "Operation Canceled", "No directory selected. Operation canceled.")
+            return
+        
+        saved_files = []  # To store file paths of created GeoTIFFs
+        
+        # Iterate over each row in the results array
+        for idx, row in enumerate(results_array):
+            # Reshape the flat row array to the original dimensions (rows x cols)
+            data = row.reshape((rows, cols)).astype(np.float32)
+            print(f"Data shape for GeoTIFF {idx + 1}: {data.shape}")
+
+            # Define the output GeoTIFF file path
+            output_file = os.path.join(output_directory, f'output_{idx + 1}.tif')
+
+            # Create a GeoTIFF file
+            driver = gdal.GetDriverByName('GTiff')
+            dst_ds = driver.Create(output_file, cols, rows, 1, gdal.GDT_Float32)
+
+            # Set the projection and geo-transform
+            dst_ds.SetProjection(projection)
+            dst_ds.SetGeoTransform(geotransform)
+
+            # Write the 2D array to the GeoTIFF file
+            dst_ds.GetRasterBand(1).WriteArray(data)
+            dst_ds.GetRasterBand(1).SetNoDataValue(np.nan)  # Optional: Set no-data value
+            dst_ds.FlushCache()
+            dst_ds = None  # Close and save the dataset
+            
+            saved_files.append(output_file)  # Store file path for loading into QGIS
+
+            print(f'GeoTIFF {output_file} created successfully.')
+            
+        # Show a success message in a pop-up window
+        QMessageBox.information(None, "GeoTIFFs Saved", f"GeoTIFFs saved successfully in:\n{output_directory}")
+        
+        # save accuracy
+        with open(output_directory + '/Accuracy.txt', 'w') as file:
+            file.write(plain_text)        
+        
+        # Load the saved GeoTIFFs into QGIS
+        for file_path in saved_files:
+            raster_layer = QgsRasterLayer(file_path, os.path.basename(file_path), "gdal")
+            if raster_layer.isValid():
+                QgsProject.instance().addMapLayer(raster_layer)
+                print(f"Loaded {file_path} into QGIS.")
+            else:
+                print(f"Failed to load {file_path} into QGIS.")
+
+##Tab2 End - Geotiff file ----------------------------------------------------------------------------------------------------------------------------------------
 
     def open_help(self):
         file_path= os.path.join(os.path.dirname(__file__),'AIRS Help.chm')
