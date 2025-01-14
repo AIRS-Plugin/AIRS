@@ -6,11 +6,11 @@
 name=AIRS
 qgisMinimumVersion=3.0
 description=This plugin allows time series forecasting using deep learning models.
-version=0.3
+version=1.0.0
 author=Hafssa Naciri; Nizar Ben Achhab; Fatima Ezahrae Ezzaher; Naoufal Raissouni
 email=airs.qgis@gmail.com
 
-about=Artificial Intelligence Forecasting Remote Sensing (AIRS) plugin is a free open-source plugin for QGIS that allows time series forecasting using deep learning models. The overall objective of AIRS is to simplify the complexities of data preparation, model training, and prediction, empowering you to leverage your data for accurate and insightful time series forecasts. The plugin allows users to preprocess data, build and train deep learning models, make predictions, and visualize results. This plugin requires the installation of Tensorflow. Before installing this plugin visit "https://www.tensorflow.org/install/pip" for step-by-step instructions.
+about=Artificial Intelligence forecasting Remote Sensing (AIRS) plugin is a free open-source plugin for QGIS that allows time series forecasting using deep learning models. The overall objective of AIRS is to simplify the complexities of data preparation, model training, and prediction, empowering you to leverage your data for accurate and insightful time series forecasts. The plugin allows users to preprocess data, build and train deep learning models, make predictions, and visualize results. This plugin requires the installation of Tensorflow. Before installing this plugin visit "https://www.tensorflow.org/install/pip" for step-by-step instructions.
 
 tracker=https://github.com/AIRS-Plugin/AIRS/issues
 repository=https://github.com/AIRS-Plugin/AIRS
@@ -20,12 +20,16 @@ repository=https://github.com/AIRS-Plugin/AIRS
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-# changelog= 	version 0.3 - Fixed error regarding pyqt class
+# changelog=	version 1.0.0 - Major update:  
+            		- Added a new **GeoTIFF** tab for saving forecasted data.  
+            		- Implemented **automatic hyperparameter tuning** for deep learning models.  
+            		- Improved user interface and error handling.  
+            		- Optimized model training workflow for better efficiency.
+		version 0.3 - Fixed error regarding pyqt class
 		version 0.2.1 - Fixed error regarding TensorFlow installation
 		version 0.2 - Fixed error regarding TensorFlow installation
 		version 0.1 - First realease
-		
-	
+
 # Tags are comma separated with spaces allowed
 tags=Deep learning, LSTM model, Time series, Forecasting, Analysis, Remote sensing
 
