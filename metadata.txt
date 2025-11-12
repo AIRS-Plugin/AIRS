@@ -20,7 +20,9 @@ repository=https://github.com/AIRS-Plugin/AIRS
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-# changelog=	version 1.0.0 - Major update:  
+# changelog=	version 1.0.1 - Minor update:
+			- Fixed compatibility issue with newer pandas versions
+		version 1.0.0 - Major update:  
             		- Added a new **GeoTIFF** tab for saving forecasted data.  
             		- Implemented **automatic hyperparameter tuning** for deep learning models.  
             		- Improved user interface and error handling.  
