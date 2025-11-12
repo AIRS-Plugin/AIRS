@@ -6,7 +6,7 @@
 name=AIRS
 qgisMinimumVersion=3.0
 description=This plugin allows time series forecasting using deep learning models.
-version=1.0.0
+version=1.0.1
 author=Hafssa Naciri; Nizar Ben Achhab; Fatima Ezahrae Ezzaher; Naoufal Raissouni
 email=airs.qgis@gmail.com
 
