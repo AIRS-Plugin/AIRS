@@ -439,10 +439,10 @@ class AIRSDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         try:
             # upload file
             if fileName[0].endswith('.csv'):
-                DataFrame = pd.read_csv(fileName[0], delimiter=',', keep_default_na=False, error_bad_lines=False, header=0)
+                DataFrame = pd.read_csv(fileName[0], delimiter=',', keep_default_na=False, on_bad_lines='skip', header=0)
                 # print(DataFrame)
             elif fileName[0].endswith('.txt'):
-                DataFrame = pd.read_table(fileName[0], sep=',', keep_default_na=False, error_bad_lines=False, header=0)
+                DataFrame = pd.read_table(fileName[0], sep=',', keep_default_na=False, on_bad_lines='skip', header=0)
                 # print(DataFrame)
             
             # Date column availability
